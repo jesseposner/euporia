@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useSyncExternalStore } from "react";
 import { type Merchant, defaultMerchant, merchants } from "@/lib/merchants";
 
 interface MerchantContextValue {
@@ -21,16 +21,30 @@ export function useMerchant() {
 
 const MERCHANT_KEY = "shopai-merchant";
 
+function getStoredMerchantId() {
+  return localStorage.getItem(MERCHANT_KEY);
+}
+
+function subscribeToStorage(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
 export function MerchantProvider({ children }: { children: React.ReactNode }) {
-  const [merchant, setMerchantState] = useState<Merchant>(() => {
-    if (typeof window === "undefined") return defaultMerchant;
-    const stored = localStorage.getItem(MERCHANT_KEY);
-    if (stored) {
-      const found = merchants.find((m) => m.id === stored);
-      if (found) return found;
-    }
-    return defaultMerchant;
-  });
+  const storedId = useSyncExternalStore(
+    subscribeToStorage,
+    getStoredMerchantId,
+    () => null,
+  );
+
+  const resolved = (storedId && merchants.find((m) => m.id === storedId)) || defaultMerchant;
+
+  const [merchant, setMerchantState] = useState(resolved);
+
+  // Keep in sync if storage changes externally
+  if (merchant.id !== resolved.id) {
+    setMerchantState(resolved);
+  }
 
   const setMerchant = useCallback((m: Merchant) => {
     setMerchantState(m);
