@@ -144,14 +144,33 @@ export function Chat({
         <div className="flex items-center gap-3">
           <div className="size-2 animate-pulse rounded-full bg-green-500" />
           <span className="text-sm font-medium text-muted-foreground">
-            ShopAI Active
+            Concierge AI Active
           </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full text-muted-foreground hover:text-foreground"
+          >
+            <span className="material-icons-round text-xl">bookmark_border</span>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full text-muted-foreground hover:text-foreground"
+          >
+            <span className="material-icons-round text-xl">settings</span>
+          </Button>
         </div>
       </header>
 
       {/* Messages */}
-      <ScrollArea className="flex-1">
-        <div ref={scrollRef} className="mx-auto max-w-4xl space-y-8 p-4 md:p-8">
+      <ScrollArea className="relative flex-1">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="chat-ambient-glow absolute left-1/2 top-1/3 -translate-x-1/2 size-96 rounded-full bg-primary/5 blur-3xl" />
+        </div>
+        <div ref={scrollRef} className="relative mx-auto max-w-4xl space-y-8 p-4 md:p-8">
           {messages.length === 0 && !isLoading && (
             <div className="flex flex-col items-center justify-center py-20 text-center text-muted-foreground">
               <span className="material-icons-round mb-4 text-5xl opacity-20">
@@ -180,7 +199,7 @@ export function Chat({
             </div>
           )}
 
-          {messages.map((message) => (
+          {messages.map((message, index) => (
             <div
               key={message.id}
               className={cn(
@@ -234,6 +253,21 @@ export function Chat({
 
                   return null;
                 })}
+
+                {/* Quick-action chips after the last assistant message */}
+                {message.role === "assistant" && index === messages.length - 1 && !isLoading && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {["Refine by Budget", "Find Alternatives", "Compare Specs", "Show cheaper options"].map((chip) => (
+                      <button
+                        key={chip}
+                        onClick={() => handleChipClick(chip)}
+                        className="rounded-full border border-border bg-card px-3 py-1.5 text-xs transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md hover:shadow-primary/5"
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -275,6 +309,14 @@ export function Chat({
             onSubmit={handleSubmit}
             className="relative flex items-end rounded-2xl border border-border bg-card p-2 shadow-xl focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/50"
           >
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="mb-0.5 rounded-full text-muted-foreground hover:text-foreground"
+            >
+              <span className="material-icons-round text-xl">attach_file</span>
+            </Button>
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}

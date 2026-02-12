@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import { getModel } from "@/lib/llm";
 import { getProductByHandle } from "@/lib/shopify";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:3010";
@@ -60,7 +60,7 @@ export async function POST(
   // Generate AI analysis
   try {
     const { text } = await generateText({
-      model: anthropic("claude-sonnet-4-20250514"),
+      model: getModel(),
       prompt: `Analyze this product and return a JSON object (no markdown, just valid JSON) with this structure:
 {
   "pros": ["pro 1", "pro 2", "pro 3"],

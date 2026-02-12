@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::get,
+    routing::{delete, get},
     Json, Router,
 };
 use sqlx::SqlitePool;
@@ -54,6 +54,15 @@ async fn main() -> anyhow::Result<()> {
         .route(
             "/api/cart-session/{session_id}",
             get(get_cart_session).post(save_cart_session),
+        )
+        // Wishlist
+        .route(
+            "/api/wishlist/{session_id}",
+            get(list_wishlist).post(add_wishlist),
+        )
+        .route(
+            "/api/wishlist/{session_id}/{id}",
+            delete(delete_wishlist),
         )
         .layer(CorsLayer::permissive())
         .with_state(state);
@@ -130,12 +139,14 @@ async fn save_profile(
 
 // ── Conversations ───────────────────────────────────────────────────────────
 
+type ConversationRow = (String, String, String, Option<String>, Option<String>);
+
 async fn list_conversations(
     State(state): State<AppState>,
     Path(session_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let rows: Vec<(String, String, String)> = sqlx::query_as(
-        "SELECT id, title, updated_at FROM conversations WHERE session_id = ? ORDER BY updated_at DESC",
+    let rows: Vec<ConversationRow> = sqlx::query_as(
+        "SELECT id, title, updated_at, category, icon FROM conversations WHERE session_id = ? ORDER BY updated_at DESC",
     )
     .bind(&session_id)
     .fetch_all(&state.db)
@@ -144,8 +155,14 @@ async fn list_conversations(
 
     let conversations: Vec<serde_json::Value> = rows
         .into_iter()
-        .map(|(id, title, updated_at)| {
-            serde_json::json!({ "id": id, "title": title, "updated_at": updated_at })
+        .map(|(id, title, updated_at, category, icon)| {
+            serde_json::json!({
+                "id": id,
+                "title": title,
+                "updated_at": updated_at,
+                "category": category,
+                "icon": icon,
+            })
         })
         .collect();
 
@@ -381,4 +398,84 @@ async fn save_cart_session(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     Ok(Json(serde_json::json!({ "status": "saved" })))
+}
+
+// ── Wishlist ────────────────────────────────────────────────────────────────
+
+type WishlistRow = (String, String, Option<String>, Option<String>, Option<String>, String);
+
+async fn list_wishlist(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let rows: Vec<WishlistRow> = sqlx::query_as(
+            "SELECT id, product_handle, product_title, product_image, product_price, created_at
+             FROM wishlist_items WHERE session_id = ? ORDER BY created_at DESC",
+        )
+        .bind(&session_id)
+        .fetch_all(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let items: Vec<serde_json::Value> = rows
+        .into_iter()
+        .map(|(id, handle, title, image, price, created_at)| {
+            serde_json::json!({
+                "id": id,
+                "product_handle": handle,
+                "product_title": title,
+                "product_image": image,
+                "product_price": price,
+                "created_at": created_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({ "items": items })))
+}
+
+#[derive(serde::Deserialize)]
+struct AddWishlistRequest {
+    product_handle: String,
+    product_title: Option<String>,
+    product_image: Option<String>,
+    product_price: Option<String>,
+}
+
+async fn add_wishlist(
+    State(state): State<AppState>,
+    Path(session_id): Path<String>,
+    Json(body): Json<AddWishlistRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let id = uuid::Uuid::new_v4().to_string();
+
+    sqlx::query(
+        "INSERT INTO wishlist_items (id, session_id, product_handle, product_title, product_image, product_price)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(session_id, product_handle) DO NOTHING",
+    )
+    .bind(&id)
+    .bind(&session_id)
+    .bind(&body.product_handle)
+    .bind(&body.product_title)
+    .bind(&body.product_image)
+    .bind(&body.product_price)
+    .execute(&state.db)
+    .await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(serde_json::json!({ "id": id, "status": "added" })))
+}
+
+async fn delete_wishlist(
+    State(state): State<AppState>,
+    Path((_session_id, id)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    sqlx::query("DELETE FROM wishlist_items WHERE id = ?")
+        .bind(&id)
+        .execute(&state.db)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    Ok(Json(serde_json::json!({ "status": "deleted" })))
 }

@@ -48,34 +48,37 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (!stored) setCart(null);
   }, [merchant.id]);
 
+  const refreshCartInternal = useCallback(
+    async (id: string) => {
+      try {
+        setIsLoading(true);
+        const res = await fetch(
+          `/api/cart?cartId=${encodeURIComponent(id)}&store=${encodeURIComponent(merchant.domain)}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setCart(data);
+        }
+      } catch {
+        // Cart may have expired
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [merchant.domain],
+  );
+
   // Fetch cart when cartId is available
   useEffect(() => {
     if (!cartId) return;
     refreshCartInternal(cartId);
-  }, [cartId]);
-
-  async function refreshCartInternal(id: string) {
-    try {
-      setIsLoading(true);
-      const res = await fetch(
-        `/api/cart?cartId=${encodeURIComponent(id)}&store=${encodeURIComponent(merchant.domain)}`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setCart(data);
-      }
-    } catch {
-      // Cart may have expired
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  }, [cartId, refreshCartInternal]);
 
   const refreshCart = useCallback(async () => {
     if (cartId) {
       await refreshCartInternal(cartId);
     }
-  }, [cartId]);
+  }, [cartId, refreshCartInternal]);
 
   const addItem = useCallback(
     async (merchandiseId: string, quantity: number) => {

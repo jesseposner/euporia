@@ -1,6 +1,18 @@
 import Image from "next/image";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import type { Product } from "@/lib/shopify";
+
+export interface ProductBadge {
+  label: string;
+  variant: "top-pick" | "sale" | "new";
+}
+
+interface ProductCardProps {
+  product: Product;
+  index?: number;
+  badge?: ProductBadge;
+}
 
 function extractCategory(productType?: string, tags?: string[]): string {
   if (productType) return productType;
@@ -8,12 +20,7 @@ function extractCategory(productType?: string, tags?: string[]): string {
   return "Product";
 }
 
-export function ProductCard({
-  product,
-}: {
-  product: Product;
-  index?: number;
-}) {
+export function ProductCard({ product, badge }: ProductCardProps) {
   const price = product.priceRange?.minVariantPrice;
   const image = product.images?.[0];
   const handle = product.handle;
@@ -36,6 +43,16 @@ export function ProductCard({
             <span className="material-icons-round text-4xl text-muted-foreground/20">
               image
             </span>
+          </div>
+        )}
+        {badge && (
+          <div className={cn(
+            "absolute top-2 left-2 rounded-full px-2.5 py-0.5 text-xs font-semibold",
+            badge.variant === "top-pick" && "bg-yellow-500/90 text-black",
+            badge.variant === "sale" && "bg-red-500/90 text-white",
+            badge.variant === "new" && "bg-primary/90 text-white",
+          )}>
+            {badge.label}
           </div>
         )}
       </div>
@@ -78,13 +95,23 @@ export function ProductCard({
   return card;
 }
 
-export function ProductGrid({ products }: { products: Product[] }) {
+export function ProductGrid({
+  products,
+  badges,
+}: {
+  products: Product[];
+  badges?: Record<string, ProductBadge>;
+}) {
   if (!products?.length) return null;
 
   return (
     <div className="my-2 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {products.map((product, i) => (
-        <ProductCard key={product.handle || i} product={product} />
+        <ProductCard
+          key={product.handle || i}
+          product={product}
+          badge={product.handle ? badges?.[product.handle] : undefined}
+        />
       ))}
     </div>
   );

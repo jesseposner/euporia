@@ -141,3 +141,13 @@
     background: var(--muted-foreground);
   }
 }
+
+/* Ambient glow for chat background */
+@keyframes ambient-glow {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.1); }
+}
+
+.chat-ambient-glow {
+  animation: ambient-glow 8s ease-in-out infinite;
+}

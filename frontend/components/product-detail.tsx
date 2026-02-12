@@ -1,10 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
+import { AIReviewSynthesis } from "@/components/product-detail/ai-review-synthesis";
+import { StickyPurchaseBar } from "@/components/product-detail/sticky-purchase-bar";
 import { useCart } from "@/lib/cart-context";
 import { useMerchant } from "@/lib/merchant-context";
 import type { Product, ProductVariant } from "@/lib/shopify";
@@ -27,6 +36,9 @@ export function ProductDetail({ handle }: { handle: string }) {
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [showStickyBar, setShowStickyBar] = useState(false);
+  const ctaRef = useRef<HTMLDivElement>(null);
   const { addItem } = useCart();
   const { merchant } = useMerchant();
 
@@ -87,6 +99,32 @@ export function ProductDetail({ handle }: { handle: string }) {
     }
   }, [product, fetchAnalysis]);
 
+  // Intersection observer for sticky purchase bar
+  useEffect(() => {
+    const el = ctaRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setShowStickyBar(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [product]);
+
+  async function toggleWishlist() {
+    const next = !isWishlisted;
+    setIsWishlisted(next);
+    try {
+      await fetch("/api/wishlist", {
+        method: next ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handle }),
+      });
+    } catch {
+      setIsWishlisted(!next); // revert on failure
+    }
+  }
+
   async function handleAddToCart() {
     if (!selectedVariant?.id) return;
     setIsAdding(true);
@@ -125,14 +163,24 @@ export function ProductDetail({ handle }: { handle: string }) {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-6xl p-6 lg:p-8">
-        {/* Back link */}
-        <Link
-          href="/"
-          className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
-        >
-          <span className="material-icons-round text-lg">arrow_back</span>
-          Back to products
-        </Link>
+        {/* Breadcrumb */}
+        <Breadcrumb className="mb-6">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink href="/">Home</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbLink href="/">
+                {product.productType || "Products"}
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>{product.title}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
 
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Left: Image Gallery */}
@@ -157,6 +205,11 @@ export function ProductDetail({ handle }: { handle: string }) {
                   </span>
                 </div>
               )}
+              {/* Verified Authentic Badge */}
+              <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-green-500/90 px-2.5 py-1 text-xs font-medium text-white">
+                <span className="material-icons-round text-sm">verified</span>
+                Verified Authentic
+              </div>
             </div>
 
             {/* Thumbnail strip */}
@@ -189,7 +242,43 @@ export function ProductDetail({ handle }: { handle: string }) {
 
           {/* Right: Product Info */}
           <div>
-            <h1 className="text-2xl font-bold">{product.title}</h1>
+            <div className="flex items-start">
+              <h1 className="text-2xl font-bold">{product.title}</h1>
+              <button
+                onClick={toggleWishlist}
+                className="ml-2 rounded-full p-1.5 transition-colors hover:bg-accent"
+                aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+              >
+                <span
+                  className={`material-icons-round text-xl ${isWishlisted ? "text-red-500" : "text-muted-foreground"}`}
+                >
+                  {isWishlisted ? "favorite" : "favorite_border"}
+                </span>
+              </button>
+            </div>
+
+            {/* Star Rating */}
+            {analysis?.features && (
+              <div className="mt-1 flex items-center gap-2">
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((star) => {
+                    const avg =
+                      analysis.features!.reduce((s, f) => s + f.score, 0) /
+                      analysis.features!.length;
+                    const normalizedRating = (avg / 10) * 5;
+                    return (
+                      <span
+                        key={star}
+                        className={`material-icons-round text-sm ${star <= normalizedRating ? "text-yellow-400" : "text-muted-foreground/30"}`}
+                      >
+                        star
+                      </span>
+                    );
+                  })}
+                </div>
+                <span className="text-xs text-muted-foreground">AI Score</span>
+              </div>
+            )}
 
             {price?.amount && (
               <p className="mt-2 text-3xl font-bold text-primary">
@@ -234,7 +323,7 @@ export function ProductDetail({ handle }: { handle: string }) {
             )}
 
             {/* Add to Cart */}
-            <div className="mt-6">
+            <div className="mt-6" ref={ctaRef}>
               <Button
                 onClick={handleAddToCart}
                 disabled={
@@ -292,90 +381,7 @@ export function ProductDetail({ handle }: { handle: string }) {
                   <Skeleton className="mt-4 h-20 w-full" />
                 </div>
               ) : analysis ? (
-                <div className="space-y-5">
-                  {/* Pros */}
-                  {analysis.pros && analysis.pros.length > 0 && (
-                    <div>
-                      <p className="mb-2 text-sm font-medium text-green-400">
-                        Pros
-                      </p>
-                      <ul className="space-y-1">
-                        {analysis.pros.map((pro, i) => (
-                          <li
-                            key={i}
-                            className="flex items-start gap-2 text-sm text-muted-foreground"
-                          >
-                            <span className="material-icons-round mt-0.5 text-sm text-green-400">
-                              add_circle
-                            </span>
-                            {pro}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Cons */}
-                  {analysis.cons && analysis.cons.length > 0 && (
-                    <div>
-                      <p className="mb-2 text-sm font-medium text-orange-400">
-                        Cons
-                      </p>
-                      <ul className="space-y-1">
-                        {analysis.cons.map((con, i) => (
-                          <li
-                            key={i}
-                            className="flex items-start gap-2 text-sm text-muted-foreground"
-                          >
-                            <span className="material-icons-round mt-0.5 text-sm text-orange-400">
-                              remove_circle
-                            </span>
-                            {con}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Feature Scores */}
-                  {analysis.features && analysis.features.length > 0 && (
-                    <div>
-                      <p className="mb-2 text-sm font-medium">
-                        Feature Scores
-                      </p>
-                      <div className="space-y-2">
-                        {analysis.features.map((f, i) => (
-                          <div key={i} className="flex items-center gap-3">
-                            <span className="w-28 text-xs text-muted-foreground">
-                              {f.name}
-                            </span>
-                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full rounded-full bg-primary transition-all"
-                                style={{ width: `${(f.score / 10) * 100}%` }}
-                              />
-                            </div>
-                            <span className="w-8 text-right text-xs font-medium">
-                              {f.score}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Who is this for */}
-                  {analysis.whoIsThisFor && (
-                    <div>
-                      <p className="mb-2 text-sm font-medium">
-                        Who is this for?
-                      </p>
-                      <p className="text-sm leading-relaxed text-muted-foreground">
-                        {analysis.whoIsThisFor}
-                      </p>
-                    </div>
-                  )}
-                </div>
+                <AIReviewSynthesis analysis={analysis} />
               ) : (
                 <p className="text-sm text-muted-foreground">
                   AI analysis unavailable for this product.
@@ -385,6 +391,26 @@ export function ProductDetail({ handle }: { handle: string }) {
           </div>
         </div>
       </div>
+
+      {/* Sticky Purchase Bar */}
+      <StickyPurchaseBar
+        price={price?.amount}
+        currencyCode={price?.currencyCode}
+        variantId={selectedVariant?.id}
+        visible={showStickyBar}
+        disabled={isAdding || !selectedVariant?.availableForSale}
+        onAdd={async (quantity) => {
+          if (!selectedVariant?.id) return;
+          setIsAdding(true);
+          try {
+            await addItem(selectedVariant.id, quantity);
+            setAddedToCart(true);
+            setTimeout(() => setAddedToCart(false), 2000);
+          } finally {
+            setIsAdding(false);
+          }
+        }}
+      />
     </div>
   );
 }
