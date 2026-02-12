@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+target/
+
+# Build
+.next/
+out/
+
+# Environment
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+
+# References (cloned repos, large)
+.references/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Worktrees
+.worktrees/
+
+# Planning docs (throwaway)
+docs/
+
+# Personal skills
+.claude/skills/deepen-plan-team/
