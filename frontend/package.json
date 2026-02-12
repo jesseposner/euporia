@@ -6,7 +6,8 @@
     "dev": "next dev --port 3011",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "echo \"No tests configured yet\" && exit 0"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.42",

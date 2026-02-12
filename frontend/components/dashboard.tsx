@@ -1,16 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { ProductGrid } from "@/components/product-card";
 import { CartPanel } from "@/components/cart-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Product } from "@/lib/shopify";
+
+interface RecentConversation {
+  id: string;
+  title: string;
+  updated_at?: string;
+}
 
 export function Dashboard() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [recentChats, setRecentChats] = useState<RecentConversation[]>([]);
 
   const fetchProducts = useCallback(async (query: string) => {
     setIsLoading(true);
@@ -32,6 +40,26 @@ export function Dashboard() {
   useEffect(() => {
     fetchProducts("");
   }, [fetchProducts]);
+
+  // Fetch recent conversations
+  useEffect(() => {
+    async function loadChats() {
+      const sessionId = localStorage.getItem("shopai-session");
+      if (!sessionId) return;
+      try {
+        const res = await fetch(
+          `/api/conversations?sessionId=${encodeURIComponent(sessionId)}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setRecentChats((data.conversations || []).slice(0, 5));
+        }
+      } catch {
+        // Silently handle
+      }
+    }
+    loadChats();
+  }, []);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -88,8 +116,9 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* Product grid */}
+        {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
+          {/* Product grid */}
           {isLoading ? (
             <ProductGridSkeleton />
           ) : products.length > 0 ? (
@@ -107,6 +136,49 @@ export function Dashboard() {
                   Try a different search term
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Recent Chats */}
+          {recentChats.length > 0 && (
+            <div className="mt-8">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="flex items-center gap-2 text-sm font-semibold">
+                  <span className="material-icons-round text-lg text-primary">
+                    chat
+                  </span>
+                  Recent Chats
+                </h2>
+                <Link
+                  href="/chat"
+                  className="text-xs text-primary hover:underline"
+                >
+                  View all
+                </Link>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {recentChats.map((chat) => (
+                  <Link
+                    key={chat.id}
+                    href="/chat"
+                    className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/50"
+                  >
+                    <span className="material-icons-round text-lg text-muted-foreground">
+                      chat_bubble_outline
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {chat.title}
+                      </p>
+                      {chat.updated_at && (
+                        <p className="text-xs text-muted-foreground/60">
+                          {new Date(chat.updated_at).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
         </div>

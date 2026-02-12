@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCart } from "@/lib/cart-context";
@@ -123,13 +124,13 @@ export function ProductDetail({ handle }: { handle: string }) {
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-6xl p-6 lg:p-8">
         {/* Back link */}
-        <a
+        <Link
           href="/"
           className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-primary"
         >
           <span className="material-icons-round text-lg">arrow_back</span>
           Back to products
-        </a>
+        </Link>
 
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Left: Image Gallery */}

@@ -51,7 +51,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!cartId) return;
     refreshCartInternal(cartId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cartId]);
 
   async function refreshCartInternal(id: string) {
