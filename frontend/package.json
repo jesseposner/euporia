@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.42",
+    "@ai-sdk/openai": "^3.0.28",
     "@ai-sdk/react": "^3.0.85",
     "ai": "^6.0.83",
     "class-variance-authority": "^0.7.1",
