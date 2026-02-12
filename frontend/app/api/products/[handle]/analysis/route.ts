@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import { getProductDetails } from "@/lib/shopify";
+import { getProductByHandle } from "@/lib/shopify";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:3010";
 
@@ -48,7 +48,7 @@ export async function POST(
   }
 
   // Fetch product details from Shopify
-  const product = await getProductDetails(handle);
+  const product = await getProductByHandle(handle);
   if (!product) {
     return NextResponse.json(
       { error: "Product not found" },

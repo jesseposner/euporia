@@ -313,7 +313,11 @@ function renderToolPart(part: any) {
       searchProducts: "Searching products...",
       getProductDetails: "Getting product details...",
       addToCart: "Adding to cart...",
+      updateCartItems: "Updating cart...",
+      removeFromCart: "Removing from cart...",
+      applyDiscountCode: "Applying discount...",
       getCart: "Loading cart...",
+      searchPolicies: "Looking up store info...",
       loadTasteProfile: "",
       saveTasteProfile: "",
     };
@@ -343,10 +347,11 @@ function renderToolPart(part: any) {
     return <ProductGrid key={key} products={[output]} />;
   }
 
-  if ((toolName === "addToCart" || toolName === "getCart") && output) {
+  const cartTools = ["addToCart", "updateCartItems", "removeFromCart", "applyDiscountCode", "getCart"];
+  if (cartTools.includes(toolName) && output) {
     return <CartSummary key={key} cart={output} />;
   }
 
-  // Silent tools (loadTasteProfile, saveTasteProfile)
+  // Silent tools (loadTasteProfile, saveTasteProfile, searchPolicies — text handled by LLM)
   return null;
 }

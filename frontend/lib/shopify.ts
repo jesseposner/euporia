@@ -16,6 +16,7 @@ export interface ProductVariant {
 }
 
 export interface Product {
+  productId?: string;
   title?: string;
   handle?: string;
   description?: string;
@@ -29,6 +30,23 @@ export interface Product {
   availableForSale?: boolean;
   productType?: string;
   tags?: string[];
+}
+
+export interface SearchFilter {
+  available?: boolean;
+  price?: { min?: number; max?: number };
+  productType?: string;
+  tag?: string;
+  variantOption?: { name: string; value: string };
+}
+
+export interface SearchResult {
+  products: Product[];
+  pagination?: {
+    hasNextPage?: boolean;
+    endCursor?: string;
+  };
+  availableFilters?: { label: string; values: unknown }[];
 }
 
 export interface CartLine {
@@ -98,6 +116,7 @@ function normalizeProduct(raw: any): Product {
   );
 
   return {
+    productId: raw.product_id ?? raw.productId,
     title: raw.title,
     handle,
     description: raw.description,
@@ -114,23 +133,89 @@ function normalizeProduct(raw: any): Product {
 export async function searchProducts(
   query: string,
   context?: string,
-): Promise<{ products: Product[] }> {
-  const raw = await callMCP(STORE, "search_shop_catalog", {
+  filters?: SearchFilter[],
+  after?: string,
+): Promise<SearchResult> {
+  const args: Record<string, unknown> = {
     query,
     context: context || "",
-  });
+  };
+  if (filters?.length) args.filters = filters;
+  if (after) args.after = after;
+  const raw = await callMCP(STORE, "search_shop_catalog", args);
   return {
     products: (raw.products || []).map(normalizeProduct),
+    pagination: raw.pagination
+      ? { hasNextPage: raw.pagination.hasNextPage, endCursor: raw.pagination.endCursor }
+      : undefined,
+    availableFilters: raw.available_filters,
   };
 }
 
 export async function getProductDetails(
+  productId: string,
+  options?: Record<string, string>,
+): Promise<Product | null> {
+  try {
+    const raw = await callMCP(STORE, "get_product_details", {
+      product_id: productId,
+      ...(options ? { options } : {}),
+    });
+    return normalizeProduct(raw);
+  } catch {
+    return null;
+  }
+}
+
+export async function getProductByHandle(
   handle: string,
 ): Promise<Product | null> {
-  // The MCP get_product_details requires product_id, not handle.
-  // Search by handle and match the result instead.
   const result = await searchProducts(handle);
   return result.products.find((p) => p.handle === handle) ?? null;
+}
+
+export async function searchPolicies(
+  query: string,
+  context?: string,
+): Promise<string> {
+  const raw = await callMCP(STORE, "search_shop_policies_and_faqs", {
+    query,
+    ...(context ? { context } : {}),
+  });
+  return typeof raw === "string" ? raw : JSON.stringify(raw);
+}
+
+export async function updateCartItems(
+  cartId: string,
+  updates: { lineId: string; quantity: number }[],
+): Promise<Cart> {
+  const raw = await callMCP(STORE, "update_cart", {
+    cart_id: cartId,
+    update_items: updates.map((u) => ({ id: u.lineId, quantity: u.quantity })),
+  });
+  return normalizeCart(raw);
+}
+
+export async function removeFromCart(
+  cartId: string,
+  lineIds: string[],
+): Promise<Cart> {
+  const raw = await callMCP(STORE, "update_cart", {
+    cart_id: cartId,
+    remove_line_ids: lineIds,
+  });
+  return normalizeCart(raw);
+}
+
+export async function applyDiscountCode(
+  cartId: string,
+  codes: string[],
+): Promise<Cart> {
+  const raw = await callMCP(STORE, "update_cart", {
+    cart_id: cartId,
+    discount_codes: codes,
+  });
+  return normalizeCart(raw);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
