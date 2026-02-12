@@ -14,7 +14,7 @@ export const maxDuration = 60;
 const STORE = process.env.SHOPIFY_STORE || "store.bitcoinmagazine.com";
 const BACKEND = process.env.BACKEND_URL || "http://localhost:3010";
 
-const SYSTEM_PROMPT = `You are euporia, a personal shopping concierge. You help people discover products they'll love.
+const SYSTEM_PROMPT = `You are ShopAI, a personal shopping concierge. You help people discover products they'll love.
 
 FIRST MESSAGE BEHAVIOR:
 - Call loadTasteProfile to check if this is a returning user.

@@ -1,19 +1,14 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "euporia",
+  title: "ShopAI",
   description: "AI personal shopping concierge",
 };
 
@@ -23,12 +18,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+    <html lang="en" className="dark">
+      <head>
+        <link
+          href="https://fonts.googleapis.com/icon?family=Material+Icons+Round"
+          rel="stylesheet"
+        />
+      </head>
+      <body className={`${inter.variable} antialiased`}>{children}</body>
     </html>
   );
 }
