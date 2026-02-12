@@ -48,22 +48,27 @@ check: lint test ## Lint + test (pre-merge gate)
 TEMPLATE := euporia-sandbox-template:v1
 
 # ── Docker Sandbox ─────────────────────────────────────
-sandbox: ## Start or resume the Claude sandbox on this repo
+# Auto-build template if missing (survives Docker Desktop restarts)
+ensure-template:
+	@docker image inspect $(TEMPLATE) >/dev/null 2>&1 \
+		|| (echo "Template not found, building..." && docker build -t $(TEMPLATE) -f Dockerfile.sandbox .)
+
+sandbox: ensure-template ## Start or resume the Claude sandbox on this repo
 	@docker sandbox ls 2>/dev/null | grep -q euporia-sandbox \
 		&& docker sandbox run euporia-sandbox \
 		|| docker sandbox run --load-local-template -t $(TEMPLATE) --name euporia-sandbox claude $(CURDIR)
 
-sandbox-backend: ## Start or resume sandbox on backend worktree
+sandbox-backend: ensure-template ## Start or resume sandbox on backend worktree
 	@docker sandbox ls 2>/dev/null | grep -q backend-agent \
 		&& docker sandbox run backend-agent \
 		|| docker sandbox run --load-local-template -t $(TEMPLATE) --name backend-agent claude $(CURDIR)/../euporia-backend
 
-sandbox-frontend: ## Start or resume sandbox on frontend worktree
+sandbox-frontend: ensure-template ## Start or resume sandbox on frontend worktree
 	@docker sandbox ls 2>/dev/null | grep -q frontend-agent \
 		&& docker sandbox run frontend-agent \
 		|| docker sandbox run --load-local-template -t $(TEMPLATE) --name frontend-agent claude $(CURDIR)/../euporia-frontend
 
-sandbox-build: ## Build the sandbox template image
+sandbox-build: ## Rebuild the sandbox template image
 	docker build -t $(TEMPLATE) -f Dockerfile.sandbox .
 
 sandbox-ls: ## List running sandboxes
@@ -73,11 +78,21 @@ sandbox-fix-auth: ## Fix OAuth in a sandbox (usage: make sandbox-fix-auth NAME=e
 	docker sandbox exec -it $(NAME) bash -c 'sed -i "/"apiKeyHelper"/d" ~/.claude/settings.json && echo "Auth fixed"'
 
 # ── Worktrees ──────────────────────────────────────────
-worktree-backend: ## Create backend worktree
-	git worktree add -b feature/backend ../euporia-backend
+worktree-backend: ## Create backend worktree (or reset if exists)
+	@if [ -d ../euporia-backend ]; then \
+		echo "Worktree already exists at ../euporia-backend"; \
+	else \
+		git worktree add -b feature/backend ../euporia-backend 2>/dev/null \
+		|| git worktree add ../euporia-backend feature/backend; \
+	fi
 
-worktree-frontend: ## Create frontend worktree
-	git worktree add -b feature/frontend ../euporia-frontend
+worktree-frontend: ## Create frontend worktree (or reset if exists)
+	@if [ -d ../euporia-frontend ]; then \
+		echo "Worktree already exists at ../euporia-frontend"; \
+	else \
+		git worktree add -b feature/frontend ../euporia-frontend 2>/dev/null \
+		|| git worktree add ../euporia-frontend feature/frontend; \
+	fi
 
 worktree-clean: ## Remove all worktrees
 	-git worktree remove ../euporia-backend
@@ -89,7 +104,9 @@ review: ## Review current branch diff with Codex (usage: make review BRANCH=feat
 
 # ── Sandbox Setup ─────────────────────────────────────
 sandbox-setup: ## Install skills + plugins in a sandbox (usage: make sandbox-setup NAME=euporia-sandbox)
-	docker sandbox exec $(NAME) bash -c 'find /Users/jesse/src -maxdepth 2 -name sandbox-setup.sh 2>/dev/null | head -1 | xargs bash'
+	@docker sandbox ls 2>/dev/null | grep -q $(NAME) \
+		|| (echo "Error: sandbox '$(NAME)' not found. Create it first." && exit 1)
+	docker sandbox exec $(NAME) bash -c 'for d in $$(ls -d /Users/jesse/src/euporia*/sandbox-setup.sh 2>/dev/null); do bash "$$d"; break; done'
 
 # ── Setup ──────────────────────────────────────────────
 setup: ## First-time setup (install deps, build, verify)
@@ -103,5 +120,5 @@ help: ## Show this help
 
 .PHONY: build build-backend build-frontend dev dev-backend dev-frontend \
         test test-backend test-frontend lint lint-backend lint-frontend check \
-        sandbox sandbox-backend sandbox-frontend sandbox-build sandbox-setup sandbox-ls sandbox-fix-auth \
+        ensure-template sandbox sandbox-backend sandbox-frontend sandbox-build sandbox-setup sandbox-ls sandbox-fix-auth \
         worktree-backend worktree-frontend worktree-clean review setup help
