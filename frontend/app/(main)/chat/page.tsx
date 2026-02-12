@@ -1,22 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Chat } from "@/components/chat";
 import {
   ConversationSidebar,
   type Conversation,
 } from "@/components/conversation-sidebar";
-
-function getOrCreateSessionId(): string {
-  const key = "shopai-session";
-  const stored = localStorage.getItem(key);
-  if (stored) return stored;
-  const id = crypto.randomUUID();
-  localStorage.setItem(key, id);
-  return id;
-}
+import { getOrCreateSessionId } from "@/lib/session";
 
 export default function ChatPage() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("q") || undefined;
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -113,12 +108,13 @@ export default function ChatPage() {
         onNew={handleNewChat}
         isLoading={isLoadingConvs}
       />
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col">
         <Chat
           key={chatKey}
           sessionId={sessionId}
           conversationId={activeConvId}
           initialMessages={initialMessages}
+          initialQuery={activeConvId ? undefined : initialQuery}
           onConversationSaved={handleConversationSaved}
         />
       </div>

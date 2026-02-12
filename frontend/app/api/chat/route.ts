@@ -17,16 +17,32 @@ import {
   searchPolicies,
   type SearchFilter,
 } from "@/lib/shopify";
+import { merchants } from "@/lib/merchants";
 import { getModel } from "@/lib/llm";
 
 export const maxDuration = 60;
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:3010";
 
-const SYSTEM_PROMPT = `You are ShopAI, a personal shopping concierge for this store. Your job is to actively browse and shop the catalog on behalf of the user.
+function buildSystemPrompt() {
+  const storeList = merchants
+    .map((m) => `- "${m.domain}" — ${m.name} (${m.description})`)
+    .join("\n");
+
+  return `You are ShopAI, a personal shopping concierge with access to multiple stores. Your job is to actively browse and shop across ALL stores on behalf of the user.
+
+AVAILABLE STORES:
+${storeList}
 
 CORE PRINCIPLE:
-You are a personal shopper — not a general chatbot. Every response should move toward finding and presenting real products from the store. When the user says something like "find me something cool", "pick out gifts", or "surprise me", immediately search the catalog. Don't ask what they want — go shop for them and bring back options.
+You are a personal shopper — not a general chatbot. Every response should move toward finding and presenting real products. When the user says something like "find me something cool", "pick out gifts", or "surprise me", immediately search the catalog. Don't ask what they want — go shop for them and bring back options.
+
+MULTI-STORE BEHAVIOR:
+- Every tool requires a "store" parameter (the store domain). Always specify which store you're targeting.
+- For broad requests (e.g. "gifts under $50", "what's trending"), search MULTIPLE stores in parallel to give the best selection across the entire catalog.
+- When showing results, always label each product with the store name so the user knows where it's from.
+- If the user asks about a specific store by name, target that store.
+- For cart operations, each store has its own cart — mention which store's cart you're modifying.
 
 FIRST MESSAGE BEHAVIOR:
 - Call loadTasteProfile to check if this is a returning user.
@@ -39,9 +55,9 @@ TASTE DISCOVERY:
 - Use their taste as context in every search to improve results.
 
 SHOPPING BEHAVIOR:
-- Be proactive. If the user gives a vague request ("something for my friend", "cool stuff"), pick 2-3 search terms and run multiple searches to cast a wide net.
+- Be proactive. If the user gives a vague request ("something for my friend", "cool stuff"), pick 2-3 search terms and run multiple searches across stores to cast a wide net.
 - Always search the catalog — never recommend products from memory or make up items.
-- Present products with title, price, and a short reason why it fits what they asked for.
+- Present products with title, price, store name, and a short reason why it fits what they asked for.
 - Number them [1], [2], [3] so the user can pick by number.
 - If results don't match well, try different search terms automatically.
 - Suggest related items or categories the user might not have thought of.
@@ -68,24 +84,31 @@ RULES:
 - Never make up product details — only cite what the tools return.
 - Be concise. Brief commentary, then show the products.
 - If a tool fails, try once more with different terms.
-- You only have access to this store's inventory. Don't reference products outside of it.`;
+- Don't reference products outside of what the tools return.`;
+}
 
 export async function POST(req: Request) {
   const url = new URL(req.url);
   const sessionId = url.searchParams.get("sessionId") || "demo";
-  const storeDomain = url.searchParams.get("store") || undefined;
   const { messages }: { messages: UIMessage[] } = await req.json();
+
+  const storeParam = z
+    .string()
+    .describe(
+      "Store domain to target (e.g. \"store.bitcoinmagazine.com\"). Always specify which store to query.",
+    );
 
   const result = streamText({
     model: getModel(),
-    system: SYSTEM_PROMPT,
+    system: buildSystemPrompt(),
     messages: await convertToModelMessages(messages),
     tools: {
       searchProducts: tool({
         description:
-          "Search the store catalog for products. Supports natural language queries, filters (price range, product type, size/color), and pagination. Returns products with available_filters you can use in follow-up searches. Call this proactively — don't wait for the user to ask.",
+          "Search a store catalog for products. Supports natural language queries, filters (price range, product type, size/color), and pagination. Returns products with available_filters you can use in follow-up searches. Call this proactively — don't wait for the user to ask. To search multiple stores, call this tool multiple times with different store values.",
         inputSchema: z.object({
           query: z.string().describe("Natural language search query"),
+          store: storeParam,
           context: z
             .string()
             .optional()
@@ -113,13 +136,13 @@ export async function POST(req: Request) {
             .optional()
             .describe("Pagination cursor (endCursor from previous result) to load more"),
         }),
-        execute: async ({ query, context, filters, after }) => {
+        execute: async ({ query, store, context, filters, after }) => {
           return await searchProducts(
             query,
             context,
             filters as SearchFilter[] | undefined,
             after,
-            storeDomain,
+            store,
           );
         },
       }),
@@ -131,13 +154,14 @@ export async function POST(req: Request) {
           productId: z
             .string()
             .describe("Product ID like gid://shopify/Product/123 from search results"),
+          store: storeParam,
           options: z
             .record(z.string(), z.string())
             .optional()
             .describe('Variant options to select, e.g. {"Size": "Large", "Color": "Black"}'),
         }),
-        execute: async ({ productId, options }) => {
-          return await getProductDetails(productId, options, storeDomain);
+        execute: async ({ productId, store, options }) => {
+          return await getProductDetails(productId, options, store);
         },
       }),
 
@@ -155,13 +179,14 @@ export async function POST(req: Request) {
               }),
             )
             .describe("Items to add to cart"),
+          store: storeParam,
           cartId: z
             .string()
             .optional()
             .describe("Existing cart ID to add to. Omit to create a new cart."),
         }),
-        execute: async ({ items, cartId }) => {
-          return await addToCart(items, cartId, storeDomain);
+        execute: async ({ items, store, cartId }) => {
+          return await addToCart(items, cartId, store);
         },
       }),
 
@@ -170,6 +195,7 @@ export async function POST(req: Request) {
           "Update quantities of items already in the cart. Set quantity to 0 to remove an item.",
         inputSchema: z.object({
           cartId: z.string().describe("The cart ID"),
+          store: storeParam,
           updates: z
             .array(
               z.object({
@@ -179,8 +205,8 @@ export async function POST(req: Request) {
             )
             .describe("Items to update"),
         }),
-        execute: async ({ cartId, updates }) => {
-          return await updateCartItems(cartId, updates, storeDomain);
+        execute: async ({ cartId, store, updates }) => {
+          return await updateCartItems(cartId, updates, store);
         },
       }),
 
@@ -188,10 +214,11 @@ export async function POST(req: Request) {
         description: "Remove items from the cart by their line item IDs.",
         inputSchema: z.object({
           cartId: z.string().describe("The cart ID"),
+          store: storeParam,
           lineIds: z.array(z.string()).describe("Line item IDs to remove"),
         }),
-        execute: async ({ cartId, lineIds }) => {
-          return await removeFromCart(cartId, lineIds, storeDomain);
+        execute: async ({ cartId, store, lineIds }) => {
+          return await removeFromCart(cartId, lineIds, store);
         },
       }),
 
@@ -199,10 +226,11 @@ export async function POST(req: Request) {
         description: "Apply a discount or promo code to the cart.",
         inputSchema: z.object({
           cartId: z.string().describe("The cart ID"),
+          store: storeParam,
           codes: z.array(z.string()).describe("Discount/promo codes to apply"),
         }),
-        execute: async ({ cartId, codes }) => {
-          return await applyDiscountCode(cartId, codes, storeDomain);
+        execute: async ({ cartId, store, codes }) => {
+          return await applyDiscountCode(cartId, codes, store);
         },
       }),
 
@@ -210,20 +238,22 @@ export async function POST(req: Request) {
         description: "Get the current state of a shopping cart including items, totals, and checkout URL.",
         inputSchema: z.object({
           cartId: z.string().describe("The cart ID to retrieve"),
+          store: storeParam,
         }),
-        execute: async ({ cartId: id }) => {
-          return await getCart(id, storeDomain);
+        execute: async ({ cartId: id, store }) => {
+          return await getCart(id, store);
         },
       }),
 
       searchPolicies: tool({
         description:
-          "Search the store's policies, FAQs, and general info. Use for questions about returns, shipping, hours, contact info, etc.",
+          "Search a store's policies, FAQs, and general info. Use for questions about returns, shipping, hours, contact info, etc.",
         inputSchema: z.object({
           query: z.string().describe("The policy/FAQ question"),
+          store: storeParam,
         }),
-        execute: async ({ query }) => {
-          return await searchPolicies(query, undefined, storeDomain);
+        execute: async ({ query, store }) => {
+          return await searchPolicies(query, undefined, store);
         },
       }),
 

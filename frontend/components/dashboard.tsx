@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { SearchHeader } from "@/components/search-header";
 import { WelcomeBanner } from "@/components/dashboard/welcome-banner";
 import { MasterCart } from "@/components/dashboard/master-cart";
@@ -10,30 +10,21 @@ import { useMerchant } from "@/lib/merchant-context";
 import type { Product } from "@/lib/shopify";
 
 export function Dashboard() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { merchant } = useMerchant();
 
-  const fetchProducts = useCallback(async () => {
-    setIsLoading(true);
-    try {
+  const productsQuery = useQuery({
+    queryKey: ["products", merchant.domain],
+    queryFn: async () => {
       const res = await fetch(
         `/api/products?store=${encodeURIComponent(merchant.domain)}`,
       );
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data.products || []);
-      }
-    } catch {
-      // Silently handle
-    } finally {
-      setIsLoading(false);
-    }
-  }, [merchant.domain]);
+      if (!res.ok) throw new Error("Failed to load products");
+      const data = (await res.json()) as { products?: Product[] };
+      return data.products || [];
+    },
+  });
 
-  useEffect(() => {
-    fetchProducts();
-  }, [fetchProducts]);
+  const products = productsQuery.data || [];
 
   return (
     <div className="flex h-full">
@@ -41,7 +32,7 @@ export function Dashboard() {
         <SearchHeader title="Overview" showGreeting />
         <div className="mx-auto max-w-7xl space-y-8 px-6 py-6">
           <WelcomeBanner />
-          {isLoading ? (
+          {productsQuery.isPending ? (
             <ProductGridSkeleton />
           ) : products.length > 0 ? (
             <ProductGrid products={products} />

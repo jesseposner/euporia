@@ -12,9 +12,14 @@ export async function GET(req: NextRequest) {
     const cart = await getCart(cartId, store);
     return NextResponse.json(cart);
   } catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to get cart";
+    const normalized = message.toLowerCase();
+    const status = normalized.includes("not found") || normalized.includes("invalid")
+      ? 404
+      : 500;
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Failed to get cart" },
-      { status: 500 },
+      { error: message },
+      { status },
     );
   }
 }

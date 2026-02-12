@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +17,7 @@ import { AIReviewSynthesis } from "@/components/product-detail/ai-review-synthes
 import { StickyPurchaseBar } from "@/components/product-detail/sticky-purchase-bar";
 import { useCart } from "@/lib/cart-context";
 import { useMerchant } from "@/lib/merchant-context";
+import { getOrCreateSessionId } from "@/lib/session";
 import type { Product, ProductVariant } from "@/lib/shopify";
 
 interface AIAnalysis {
@@ -25,79 +27,98 @@ interface AIAnalysis {
   features?: { name: string; score: number }[];
 }
 
+interface ProductDetailsResponse extends Product {
+  store?: string;
+}
+
 export function ProductDetail({ handle }: { handle: string }) {
-  const [product, setProduct] = useState<Product | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(
     null,
   );
-  const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
-  const [isLoadingProduct, setIsLoadingProduct] = useState(true);
-  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
+  const [wishlistItemId, setWishlistItemId] = useState<string | null>(null);
+  const [isSavingWishlist, setIsSavingWishlist] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [showStickyBar, setShowStickyBar] = useState(false);
   const ctaRef = useRef<HTMLDivElement>(null);
+  const autoSyncedHandleRef = useRef<string | null>(null);
   const { addItem } = useCart();
-  const { merchant } = useMerchant();
+  const { merchant, setMerchant, allMerchants } = useMerchant();
 
-  // Fetch product
   useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch(
-          `/api/products/${encodeURIComponent(handle)}/details?store=${encodeURIComponent(merchant.domain)}`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setProduct(data);
-          if (data.variants?.length) {
-            setSelectedVariant(data.variants[0]);
-          }
-        }
-      } catch {
-        // Product not found
-      } finally {
-        setIsLoadingProduct(false);
-      }
-    }
-    load();
-  }, [handle, merchant.domain]);
+    setSessionId(getOrCreateSessionId());
+  }, []);
 
-  // Fetch AI analysis
-  const fetchAnalysis = useCallback(async () => {
-    setIsLoadingAnalysis(true);
-    try {
-      // Try cache first
+  useEffect(() => {
+    autoSyncedHandleRef.current = null;
+  }, [handle]);
+
+  const productQuery = useQuery({
+    queryKey: ["product-details", handle, merchant.domain],
+    queryFn: async (): Promise<ProductDetailsResponse | null> => {
+      const res = await fetch(
+        `/api/products/${encodeURIComponent(handle)}/details?store=${encodeURIComponent(merchant.domain)}`,
+      );
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error("Failed to fetch product details");
+      return (await res.json()) as ProductDetailsResponse;
+    },
+  });
+
+  const productResponse = productQuery.data;
+  const product = (productResponse || null) as Product | null;
+  const resolvedStore = productResponse?.store || merchant.domain;
+
+  const analysisQuery = useQuery({
+    queryKey: ["product-analysis", handle, resolvedStore],
+    enabled: !!product,
+    queryFn: async (): Promise<AIAnalysis | null> => {
       const cacheRes = await fetch(
-        `/api/products/${encodeURIComponent(handle)}/analysis`,
+        `/api/products/${encodeURIComponent(handle)}/analysis?store=${encodeURIComponent(resolvedStore)}`,
       );
       if (cacheRes.ok) {
-        setAnalysis(await cacheRes.json());
-        return;
+        return (await cacheRes.json()) as AIAnalysis;
       }
 
-      // Generate new analysis
       const genRes = await fetch(
-        `/api/products/${encodeURIComponent(handle)}/analysis`,
+        `/api/products/${encodeURIComponent(handle)}/analysis?store=${encodeURIComponent(resolvedStore)}`,
         { method: "POST" },
       );
       if (genRes.ok) {
-        setAnalysis(await genRes.json());
+        return (await genRes.json()) as AIAnalysis;
       }
-    } catch {
-      // Analysis unavailable
-    } finally {
-      setIsLoadingAnalysis(false);
-    }
-  }, [handle]);
+
+      return null;
+    },
+  });
+
+  const analysis = analysisQuery.data || null;
 
   useEffect(() => {
-    if (product) {
-      fetchAnalysis();
+    if (!productResponse) return;
+
+    const matchedStore = productResponse.store || merchant.domain;
+    const matchedMerchant = allMerchants.find(
+      (candidate) => candidate.domain === matchedStore,
+    );
+
+    if (
+      matchedMerchant &&
+      matchedMerchant.id !== merchant.id &&
+      autoSyncedHandleRef.current !== handle
+    ) {
+      autoSyncedHandleRef.current = handle;
+      setMerchant(matchedMerchant);
     }
-  }, [product, fetchAnalysis]);
+  }, [allMerchants, handle, merchant.domain, merchant.id, productResponse, setMerchant]);
+
+  useEffect(() => {
+    setSelectedImage(0);
+    setSelectedVariant(product?.variants?.[0] || null);
+  }, [handle, product?.handle, product?.variants]);
 
   // Intersection observer for sticky purchase bar
   useEffect(() => {
@@ -111,17 +132,69 @@ export function ProductDetail({ handle }: { handle: string }) {
     return () => observer.disconnect();
   }, [product]);
 
+  const syncWishlistState = useCallback(
+    async (currentSessionId: string) => {
+      try {
+        const res = await fetch(
+          `/api/wishlist?sessionId=${encodeURIComponent(currentSessionId)}`,
+        );
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const items = Array.isArray(data.items)
+          ? data.items
+          : Array.isArray(data.wishlist)
+            ? data.wishlist
+            : [];
+
+        const matchingItem = items.find(
+          (item: { id?: string; product_handle?: string }) =>
+            item.product_handle === handle,
+        );
+
+        setIsWishlisted(!!matchingItem);
+        setWishlistItemId(matchingItem?.id || null);
+      } catch {
+        // Best effort refresh
+      }
+    },
+    [handle],
+  );
+
+  useEffect(() => {
+    if (!sessionId) return;
+    void syncWishlistState(sessionId);
+  }, [sessionId, syncWishlistState]);
+
   async function toggleWishlist() {
-    const next = !isWishlisted;
-    setIsWishlisted(next);
+    if (!sessionId || isSavingWishlist) return;
+
+    setIsSavingWishlist(true);
     try {
-      await fetch("/api/wishlist", {
-        method: next ? "POST" : "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ handle }),
-      });
-    } catch {
-      setIsWishlisted(!next); // revert on failure
+      if (isWishlisted) {
+        if (wishlistItemId) {
+          await fetch(
+            `/api/wishlist/${encodeURIComponent(wishlistItemId)}?sessionId=${encodeURIComponent(sessionId)}`,
+            { method: "DELETE" },
+          );
+        }
+      } else {
+        await fetch("/api/wishlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            product_handle: handle,
+            product_title: product?.title,
+            product_image: product?.images?.[0]?.url,
+            product_price: selectedVariant?.price?.amount || product?.priceRange?.minVariantPrice?.amount,
+          }),
+        });
+      }
+
+      await syncWishlistState(sessionId);
+    } finally {
+      setIsSavingWishlist(false);
     }
   }
 
@@ -137,7 +210,7 @@ export function ProductDetail({ handle }: { handle: string }) {
     }
   }
 
-  if (isLoadingProduct) {
+  if (productQuery.isPending) {
     return <ProductDetailSkeleton />;
   }
 
@@ -246,6 +319,7 @@ export function ProductDetail({ handle }: { handle: string }) {
               <h1 className="text-2xl font-bold">{product.title}</h1>
               <button
                 onClick={toggleWishlist}
+                disabled={!sessionId || isSavingWishlist}
                 className="ml-2 rounded-full p-1.5 transition-colors hover:bg-accent"
                 aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
               >
@@ -373,13 +447,8 @@ export function ProductDetail({ handle }: { handle: string }) {
                 <h2 className="font-semibold">AI Review Synthesis</h2>
               </div>
 
-              {isLoadingAnalysis ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-5/6" />
-                  <Skeleton className="h-4 w-4/6" />
-                  <Skeleton className="mt-4 h-20 w-full" />
-                </div>
+              {analysisQuery.isPending ? (
+                <AnalysisLoadingState />
               ) : analysis ? (
                 <AIReviewSynthesis analysis={analysis} />
               ) : (
@@ -411,6 +480,77 @@ export function ProductDetail({ handle }: { handle: string }) {
           }
         }}
       />
+    </div>
+  );
+}
+
+const ANALYSIS_STEPS = [
+  "Reading product details...",
+  "Analyzing features...",
+  "Evaluating pros & cons...",
+  "Scoring attributes...",
+  "Synthesizing review...",
+];
+
+function AnalysisLoadingState() {
+  const [step, setStep] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStep((s) => (s + 1) % ANALYSIS_STEPS.length);
+    }, 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div className="space-y-5">
+      {/* Status message */}
+      <div className="flex items-center gap-3">
+        <span className="material-icons-round animate-spin text-base text-primary">
+          progress_activity
+        </span>
+        <span className="text-sm font-medium text-primary transition-all duration-300">
+          {ANALYSIS_STEPS[step]}
+        </span>
+      </div>
+
+      {/* Shimmer pros/cons cards */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-green-500/10 bg-green-500/5 p-4">
+          <Skeleton className="mb-3 h-4 w-12" />
+          <div className="space-y-2">
+            <Skeleton className="h-3.5 w-full" />
+            <Skeleton className="h-3.5 w-5/6" />
+            <Skeleton className="h-3.5 w-4/6" />
+          </div>
+        </div>
+        <div className="rounded-xl border border-red-500/10 bg-red-500/5 p-4">
+          <Skeleton className="mb-3 h-4 w-12" />
+          <div className="space-y-2">
+            <Skeleton className="h-3.5 w-full" />
+            <Skeleton className="h-3.5 w-4/6" />
+          </div>
+        </div>
+      </div>
+
+      {/* Shimmer feature bars */}
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-28" />
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-3">
+            <Skeleton className="h-3 w-28" />
+            <Skeleton className="h-2 flex-1 rounded-full" />
+            <Skeleton className="h-3 w-8" />
+          </div>
+        ))}
+      </div>
+
+      {/* Shimmer "who is this for" */}
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-3.5 w-full" />
+        <Skeleton className="h-3.5 w-5/6" />
+      </div>
     </div>
   );
 }

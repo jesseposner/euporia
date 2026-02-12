@@ -1,36 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ProductCard } from "@/components/product-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMerchant } from "@/lib/merchant-context";
 import type { Product } from "@/lib/shopify";
 
 export function TrendingGrid() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const { merchant } = useMerchant();
 
-  const fetchTrending = useCallback(async () => {
-    setIsLoading(true);
-    try {
+  const trendingQuery = useQuery({
+    queryKey: ["trending", merchant.domain],
+    queryFn: async () => {
       const res = await fetch(
         `/api/products?q=trending&store=${encodeURIComponent(merchant.domain)}`,
       );
-      if (res.ok) {
-        const data = await res.json();
-        setProducts((data.products || []).slice(0, 6));
-      }
-    } catch {
-      // Silently handle
-    } finally {
-      setIsLoading(false);
-    }
-  }, [merchant.domain]);
+      if (!res.ok) throw new Error("Failed to load trending products");
+      const data = (await res.json()) as { products?: Product[] };
+      return (data.products || []).slice(0, 6);
+    },
+  });
 
-  useEffect(() => {
-    fetchTrending();
-  }, [fetchTrending]);
+  const products = trendingQuery.data || [];
 
   return (
     <section>
@@ -39,7 +30,7 @@ export function TrendingGrid() {
         <h2 className="text-xl font-bold">Trending For You</h2>
       </div>
 
-      {isLoading ? (
+      {trendingQuery.isPending ? (
         <TrendingSkeleton />
       ) : products.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">

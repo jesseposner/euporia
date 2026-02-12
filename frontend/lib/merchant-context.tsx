@@ -1,7 +1,15 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { create } from "zustand";
 import { type Merchant, defaultMerchant, merchants } from "@/lib/merchants";
+
+const MERCHANT_KEY = "shopai-merchant";
+
+interface MerchantStoreState {
+  merchantId: string;
+  setMerchantId: (merchantId: string) => void;
+}
 
 interface MerchantContextValue {
   merchant: Merchant;
@@ -9,51 +17,46 @@ interface MerchantContextValue {
   allMerchants: Merchant[];
 }
 
-const MerchantContext = createContext<MerchantContextValue>({
-  merchant: defaultMerchant,
-  setMerchant: () => {},
-  allMerchants: merchants,
-});
+const useMerchantStore = create<MerchantStoreState>((set) => ({
+  merchantId: defaultMerchant.id,
+  setMerchantId: (merchantId) => set({ merchantId }),
+}));
 
-export function useMerchant() {
-  return useContext(MerchantContext);
-}
+export function useMerchant(): MerchantContextValue {
+  const merchantId = useMerchantStore((state) => state.merchantId);
+  const setMerchantId = useMerchantStore((state) => state.setMerchantId);
 
-const MERCHANT_KEY = "shopai-merchant";
+  const merchant = useMemo(
+    () => merchants.find((candidate) => candidate.id === merchantId) || defaultMerchant,
+    [merchantId],
+  );
 
-function getStoredMerchantId() {
-  return localStorage.getItem(MERCHANT_KEY);
-}
+  const setMerchant = useCallback(
+    (nextMerchant: Merchant) => setMerchantId(nextMerchant.id),
+    [setMerchantId],
+  );
 
-function subscribeToStorage(callback: () => void) {
-  window.addEventListener("storage", callback);
-  return () => window.removeEventListener("storage", callback);
+  return {
+    merchant,
+    setMerchant,
+    allMerchants: merchants,
+  };
 }
 
 export function MerchantProvider({ children }: { children: React.ReactNode }) {
-  const storedId = useSyncExternalStore(
-    subscribeToStorage,
-    getStoredMerchantId,
-    () => null,
-  );
+  const merchantId = useMerchantStore((state) => state.merchantId);
+  const setMerchantId = useMerchantStore((state) => state.setMerchantId);
 
-  const resolved = (storedId && merchants.find((m) => m.id === storedId)) || defaultMerchant;
+  useEffect(() => {
+    const storedId = localStorage.getItem(MERCHANT_KEY);
+    if (storedId && merchants.some((merchant) => merchant.id === storedId)) {
+      setMerchantId(storedId);
+    }
+  }, [setMerchantId]);
 
-  const [merchant, setMerchantState] = useState(resolved);
+  useEffect(() => {
+    localStorage.setItem(MERCHANT_KEY, merchantId);
+  }, [merchantId]);
 
-  // Keep in sync if storage changes externally
-  if (merchant.id !== resolved.id) {
-    setMerchantState(resolved);
-  }
-
-  const setMerchant = useCallback((m: Merchant) => {
-    setMerchantState(m);
-    localStorage.setItem(MERCHANT_KEY, m.id);
-  }, []);
-
-  return (
-    <MerchantContext value={{ merchant, setMerchant, allMerchants: merchants }}>
-      {children}
-    </MerchantContext>
-  );
+  return children;
 }

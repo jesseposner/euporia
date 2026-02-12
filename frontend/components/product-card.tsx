@@ -1,6 +1,10 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState, type MouseEvent } from "react";
 import { cn } from "@/lib/utils";
+import { useCart } from "@/lib/cart-context";
 import type { Product } from "@/lib/shopify";
 
 export interface ProductBadge {
@@ -21,10 +25,34 @@ function extractCategory(productType?: string, tags?: string[]): string {
 }
 
 export function ProductCard({ product, badge }: ProductCardProps) {
+  const { addItem } = useCart();
   const price = product.priceRange?.minVariantPrice;
   const image = product.images?.[0];
   const handle = product.handle;
   const category = extractCategory(product.productType, product.tags);
+  const [isAdding, setIsAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+
+  const firstAvailableVariantId =
+    product.variants?.find((variant) => variant.id && variant.availableForSale !== false)
+      ?.id ||
+    product.variants?.find((variant) => variant.id)?.id;
+
+  async function handleQuickAdd(e: MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!firstAvailableVariantId || isAdding) return;
+
+    setIsAdding(true);
+    try {
+      await addItem(firstAvailableVariantId, 1);
+      setAdded(true);
+      setTimeout(() => setAdded(false), 1500);
+    } finally {
+      setIsAdding(false);
+    }
+  }
 
   const card = (
     <div className="group cursor-pointer overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5">
@@ -78,9 +106,15 @@ export function ProductCard({ product, badge }: ProductCardProps) {
           ) : (
             <span />
           )}
-          <button className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary hover:text-white">
+          <button
+            type="button"
+            onClick={handleQuickAdd}
+            disabled={!firstAvailableVariantId || isAdding}
+            aria-label="Add to cart"
+            className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
             <span className="material-icons-round text-lg">
-              add_shopping_cart
+              {added ? "check" : isAdding ? "progress_activity" : "add_shopping_cart"}
             </span>
           </button>
         </div>

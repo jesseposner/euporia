@@ -77,9 +77,10 @@ lost" scenarios.
 
 ### Agent step count
 
-Current `stopWhen: stepCountIs(5)` is too low. A full purchase flow needs:
-loadTasteProfile → searchProducts → getProductDetails → addToCart →
-getWalletBalance → checkoutAndPay = 6 steps minimum. Increase to 10.
+Step count is already `stepCountIs(10)` (updated in a previous commit).
+This is sufficient for a full purchase flow: loadTasteProfile →
+searchProducts → getProductDetails → addToCart → getWalletBalance →
+checkoutAndPay = 6 steps, with room for retries.
 
 ### NWC client lifecycle
 
@@ -364,8 +365,10 @@ is the fastest path.
   - Add imports for `parseInvoice` from `@/lib/bolt11`
   - Add `checkoutAndPay` and `getWalletBalance` tools
   - Increase `maxDuration` from 60 to 180
-  - Increase `stepCountIs(5)` to `stepCountIs(10)`
+  - Step count already at 10 — no change needed
   - Update system prompt to mention Bitcoin payment capability
+  - Note: model is now `getModel()` from `@/lib/llm` (pluggable LLM backend)
+  - Note: `storeDomain` param supports multi-merchant — payment is store-agnostic
 
 ---
 
@@ -449,7 +452,7 @@ checkout URL from the cart. Report the amount paid in sats.
 - [ ] Kernel browser session is cleaned up in all cases (success and failure)
 - [ ] Chat UI shows loading state during checkout
 - [ ] Chat UI renders payment confirmation with amount and fees
-- [ ] `maxDuration` increased to 180s, step count increased to 10
+- [ ] `maxDuration` increased to 180s (step count already at 10)
 - [ ] System prompt updated to describe payment capability
 - [ ] Environment variables documented in `.env.example`
 

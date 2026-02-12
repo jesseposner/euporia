@@ -3,11 +3,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { useRouter } from "next/navigation";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { ProductGrid } from "@/components/product-card";
 import { CartSummary } from "@/components/cart-summary";
-import { useMerchant } from "@/lib/merchant-context";
+
 import { MarkdownResponse } from "@/components/markdown-response";
 import { cn } from "@/lib/utils";
 
@@ -17,11 +18,13 @@ const SUGGESTION_CHIPS = [
   { label: "Under $50", icon: "sell", query: "Show me products under $50" },
   { label: "Best sellers", icon: "star", query: "What are your best sellers?" },
 ];
+const BOOKMARKS_KEY = "shopai-bookmarked-conversations";
 
 interface ChatProps {
   sessionId: string;
   conversationId?: string | null;
   initialMessages?: { id: string; role: "user" | "assistant"; content: string }[];
+  initialQuery?: string;
   onConversationSaved?: (convId: string) => void;
 }
 
@@ -29,17 +32,19 @@ export function Chat({
   sessionId,
   conversationId,
   initialMessages,
+  initialQuery,
   onConversationSaved,
 }: ChatProps) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const convIdRef = useRef<string | null>(conversationId || null);
   const savingRef = useRef(false);
-  const { merchant } = useMerchant();
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+  const router = useRouter();
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
-      api: `/api/chat?sessionId=${encodeURIComponent(sessionId)}&store=${encodeURIComponent(merchant.domain)}`,
+      api: `/api/chat?sessionId=${encodeURIComponent(sessionId)}`,
     }),
     messages: initialMessages?.map((m) => ({
       ...m,
@@ -48,6 +53,32 @@ export function Chat({
   });
 
   const isLoading = status === "streaming" || status === "submitted";
+  const activeConversationId = conversationId || convIdRef.current;
+  const isBookmarked =
+    !!activeConversationId && bookmarkedIds.includes(activeConversationId);
+
+  // Auto-send initial query from discover search
+  const sentInitialQuery = useRef(false);
+  useEffect(() => {
+    if (initialQuery && !sentInitialQuery.current && status === "ready") {
+      sentInitialQuery.current = true;
+      sendMessage({ role: "user", content: initialQuery, parts: [{ type: "text", text: initialQuery }] });
+    }
+  }, [initialQuery, sendMessage, status]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(BOOKMARKS_KEY);
+    if (!stored) return;
+
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setBookmarkedIds(parsed.filter((item): item is string => typeof item === "string"));
+      }
+    } catch {
+      // Ignore invalid local storage data
+    }
+  }, []);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -138,8 +169,25 @@ export function Chat({
     sendMessage({ text: query });
   }
 
+  async function handleBookmarkClick() {
+    if (!convIdRef.current && messages.length > 0) {
+      await saveConversation();
+    }
+
+    const id = convIdRef.current;
+    if (!id) return;
+
+    setBookmarkedIds((prev) => {
+      const next = prev.includes(id)
+        ? prev.filter((bookmarkId) => bookmarkId !== id)
+        : [...prev, id];
+      localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
+
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Header */}
       <header className="flex h-16 flex-shrink-0 items-center justify-between border-b border-border bg-card/80 px-8 backdrop-blur-md">
         <div className="flex items-center gap-3">
@@ -152,13 +200,23 @@ export function Chat({
           <Button
             variant="ghost"
             size="icon"
-            className="rounded-full text-muted-foreground hover:text-foreground"
+            onClick={handleBookmarkClick}
+            disabled={messages.length === 0}
+            title={
+              isBookmarked
+                ? "Remove bookmark"
+                : "Bookmark this conversation"
+            }
+            className="rounded-full text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <span className="material-icons-round text-xl">bookmark_border</span>
+            <span className="material-icons-round text-xl">
+              {isBookmarked ? "bookmark" : "bookmark_border"}
+            </span>
           </Button>
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => router.push("/settings")}
             className="rounded-full text-muted-foreground hover:text-foreground"
           >
             <span className="material-icons-round text-xl">settings</span>
@@ -167,7 +225,7 @@ export function Chat({
       </header>
 
       {/* Messages */}
-      <ScrollArea className="relative flex-1">
+      <ScrollArea className="relative min-h-0 flex-1">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="chat-ambient-glow absolute left-1/2 top-1/3 -translate-x-1/2 size-96 rounded-full bg-primary/5 blur-3xl" />
         </div>

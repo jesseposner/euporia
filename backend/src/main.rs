@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     routing::{delete, get},
     Json, Router,
@@ -294,14 +294,25 @@ async fn delete_conversation(
 
 // ── AI Insights Cache ───────────────────────────────────────────────────────
 
+#[derive(serde::Deserialize)]
+struct InsightQuery {
+    store: Option<String>,
+}
+
 async fn get_insight(
     State(state): State<AppState>,
     Path(product_handle): Path<String>,
+    Query(query): Query<InsightQuery>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    let cache_key = match &query.store {
+        Some(store) => format!("{store}:{product_handle}"),
+        None => product_handle,
+    };
+
     let row: Option<(String, String)> = sqlx::query_as(
         "SELECT insight_json, expires_at FROM ai_insights_cache WHERE product_handle = ?",
     )
-    .bind(&product_handle)
+    .bind(&cache_key)
     .fetch_optional(&state.db)
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -313,7 +324,7 @@ async fn get_insight(
             if expires_at < now {
                 // Expired, delete and return 404
                 sqlx::query("DELETE FROM ai_insights_cache WHERE product_handle = ?")
-                    .bind(&product_handle)
+                    .bind(&cache_key)
                     .execute(&state.db)
                     .await
                     .ok();
@@ -336,8 +347,14 @@ struct SaveInsightRequest {
 async fn save_insight(
     State(state): State<AppState>,
     Path(product_handle): Path<String>,
+    Query(query): Query<InsightQuery>,
     Json(body): Json<SaveInsightRequest>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    let cache_key = match &query.store {
+        Some(store) => format!("{store}:{product_handle}"),
+        None => product_handle,
+    };
+
     let json_str =
         serde_json::to_string(&body.insight).map_err(|_| StatusCode::BAD_REQUEST)?;
     let expires_at = (chrono::Utc::now() + chrono::Duration::hours(24))
@@ -348,7 +365,7 @@ async fn save_insight(
         "INSERT INTO ai_insights_cache (product_handle, insight_json, expires_at) VALUES (?, ?, ?)
          ON CONFLICT(product_handle) DO UPDATE SET insight_json = excluded.insight_json, expires_at = excluded.expires_at, created_at = datetime('now')",
     )
-    .bind(&product_handle)
+    .bind(&cache_key)
     .bind(&json_str)
     .bind(&expires_at)
     .execute(&state.db)

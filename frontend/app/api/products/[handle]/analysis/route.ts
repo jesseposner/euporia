@@ -1,22 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { getModel } from "@/lib/llm";
-import { getProductByHandle } from "@/lib/shopify";
+import type { Product } from "@/lib/shopify";
 
 const BACKEND = process.env.BACKEND_URL || "http://localhost:3010";
 
 export const maxDuration = 30;
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ handle: string }> },
 ) {
   const { handle } = await params;
+  const store = req.nextUrl.searchParams.get("store") || "";
 
   // Check backend cache first
   try {
     const cacheRes = await fetch(
-      `${BACKEND}/api/insights/${encodeURIComponent(handle)}`,
+      `${BACKEND}/api/insights/${encodeURIComponent(handle)}?store=${encodeURIComponent(store)}`,
     );
     if (cacheRes.ok) {
       const cached = await cacheRes.json();
@@ -39,7 +40,7 @@ export async function POST(
   // Check cache first
   try {
     const cacheRes = await fetch(
-      `${BACKEND}/api/insights/${encodeURIComponent(handle)}`,
+      `${BACKEND}/api/insights/${encodeURIComponent(handle)}?store=${encodeURIComponent(store || "")}`,
     );
     if (cacheRes.ok) {
       return NextResponse.json(await cacheRes.json());
@@ -48,8 +49,19 @@ export async function POST(
     // Continue to generate
   }
 
-  // Fetch product details from Shopify
-  const product = await getProductByHandle(handle, store);
+  // Resolve product details using the same cross-store logic as product details API.
+  let product: Product | null = null;
+  try {
+    const detailsRes = await fetch(
+      `${req.nextUrl.origin}/api/products/${encodeURIComponent(handle)}/details?store=${encodeURIComponent(store || "")}`,
+    );
+    if (detailsRes.ok) {
+      product = (await detailsRes.json()) as Product;
+    }
+  } catch {
+    // Continue to product-not-found response below.
+  }
+
   if (!product) {
     return NextResponse.json(
       { error: "Product not found" },
@@ -86,7 +98,7 @@ Generate realistic, helpful pros/cons based on the product info. Include 3-5 rel
     // Cache in backend (24h TTL)
     try {
       await fetch(
-        `${BACKEND}/api/insights/${encodeURIComponent(handle)}`,
+        `${BACKEND}/api/insights/${encodeURIComponent(handle)}?store=${encodeURIComponent(store || "")}`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },

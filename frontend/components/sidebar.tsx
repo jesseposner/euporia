@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useMerchant } from "@/lib/merchant-context";
 import { UserProfileBadge } from "@/components/user-profile-badge";
@@ -21,15 +21,25 @@ const categoryItems = [
 ];
 
 const yourSpaceItems = [
-  { href: "#", label: "Wishlist", icon: "favorite_border" },
-  { href: "#", label: "Settings", icon: "settings" },
+  { href: "/wishlist", label: "Wishlist", icon: "favorite_border" },
+  { href: "/settings", label: "Settings", icon: "settings" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { cart } = useCart();
   const { merchant, setMerchant, allMerchants } = useMerchant();
   const cartCount = cart?.totalQuantity || 0;
+
+  function handleStoreSwitch(nextMerchant: (typeof allMerchants)[number]) {
+    setMerchant(nextMerchant);
+
+    const isBrowsingPage = pathname === "/" || pathname.startsWith("/discover");
+    if (!isBrowsingPage) {
+      router.push("/discover");
+    }
+  }
 
   function renderNavItem(item: { href: string; label: string; icon: string }) {
     const isActive =
@@ -83,7 +93,7 @@ export function Sidebar() {
           {discoverItems.map(renderNavItem)}
         </div>
 
-        {/* Context-aware: Categories on /discover, Stores + Your Space otherwise */}
+        {/* Context-aware sidebar sections */}
         {pathname.startsWith("/discover") ? (
           <>
             <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
@@ -93,9 +103,40 @@ export function Sidebar() {
               {categoryItems.map(renderNavItem)}
             </div>
           </>
+        ) : pathname.startsWith("/chat") ? (
+          <>
+            {/* On chat: show all stores as info-only (concierge is global) */}
+            <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+              Searching All Stores
+            </p>
+            <div className="space-y-0.5">
+              {allMerchants.map((m) => (
+                <div
+                  key={m.id}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-muted-foreground"
+                >
+                  <span className="material-icons-round text-xl">{m.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate">{m.name}</div>
+                    <div className="truncate text-[10px] font-normal text-muted-foreground/60">
+                      {m.category}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Your Space */}
+            <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+              Your Space
+            </p>
+            <div className="space-y-0.5">
+              {yourSpaceItems.map(renderNavItem)}
+            </div>
+          </>
         ) : (
           <>
-            {/* Stores */}
+            {/* Stores (selectable on non-chat pages) */}
             <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
               Stores
             </p>
@@ -105,7 +146,8 @@ export function Sidebar() {
                 return (
                   <button
                     key={m.id}
-                    onClick={() => setMerchant(m)}
+                    type="button"
+                    onClick={() => handleStoreSwitch(m)}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
                       isActive

@@ -40,13 +40,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cartId, setCartId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { merchant } = useMerchant();
+  const cartStorageKey = `${CART_KEY}-${merchant.id}`;
 
   // Load cart ID from localStorage on mount (scoped per merchant)
   useEffect(() => {
-    const stored = localStorage.getItem(`${CART_KEY}-${merchant.id}`);
+    const stored = localStorage.getItem(cartStorageKey);
     setCartId(stored);
     if (!stored) setCart(null);
-  }, [merchant.id]);
+  }, [cartStorageKey]);
 
   const refreshCartInternal = useCallback(
     async (id: string) => {
@@ -58,14 +59,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (res.ok) {
           const data = await res.json();
           setCart(data);
+        } else {
+          // Prevent repeated retry loops on invalid or expired carts.
+          setCart(null);
+          setCartId(null);
+          localStorage.removeItem(cartStorageKey);
         }
       } catch {
-        // Cart may have expired
+        // Reset invalid cart IDs on network/API failures to avoid request storms.
+        setCart(null);
+        setCartId(null);
+        localStorage.removeItem(cartStorageKey);
       } finally {
         setIsLoading(false);
       }
     },
-    [merchant.domain],
+    [cartStorageKey, merchant.domain],
   );
 
   // Fetch cart when cartId is available
@@ -98,14 +107,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           setCart(data);
           if (data.id) {
             setCartId(data.id);
-            localStorage.setItem(`${CART_KEY}-${merchant.id}`, data.id);
+            localStorage.setItem(cartStorageKey, data.id);
           }
         }
       } finally {
         setIsLoading(false);
       }
     },
-    [cartId, merchant],
+    [cartId, cartStorageKey, merchant.domain],
   );
 
   return (
