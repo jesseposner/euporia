@@ -299,7 +299,8 @@ export async function POST(req: Request) {
         },
       }),
     },
-    stopWhen: stepCountIs(10),
+    // Keep interactions responsive for UI usage; long tool loops can stall input state.
+    stopWhen: stepCountIs(4),
   });
 
   return result.toUIMessageStreamResponse();

@@ -95,7 +95,7 @@ Generate realistic, helpful pros/cons based on the product info. Include 3-5 rel
 
     const insight = JSON.parse(text);
 
-    // Cache in backend (24h TTL)
+    // Cache in backend (permanent)
     try {
       await fetch(
         `${BACKEND}/api/insights/${encodeURIComponent(handle)}?store=${encodeURIComponent(store || "")}`,

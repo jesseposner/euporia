@@ -318,19 +318,7 @@ async fn get_insight(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     match row {
-        Some((json_str, expires_at)) => {
-            // Check if expired
-            let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-            if expires_at < now {
-                // Expired, delete and return 404
-                sqlx::query("DELETE FROM ai_insights_cache WHERE product_handle = ?")
-                    .bind(&cache_key)
-                    .execute(&state.db)
-                    .await
-                    .ok();
-                return Err(StatusCode::NOT_FOUND);
-            }
-
+        Some((json_str, _expires_at)) => {
             let insight: serde_json::Value =
                 serde_json::from_str(&json_str).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
             Ok(Json(insight))

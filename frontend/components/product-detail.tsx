@@ -75,6 +75,8 @@ export function ProductDetail({ handle }: { handle: string }) {
   const analysisQuery = useQuery({
     queryKey: ["product-analysis", handle, resolvedStore],
     enabled: !!product,
+    staleTime: Infinity,
+    gcTime: Infinity,
     queryFn: async (): Promise<AIAnalysis | null> => {
       const cacheRes = await fetch(
         `/api/products/${encodeURIComponent(handle)}/analysis?store=${encodeURIComponent(resolvedStore)}`,

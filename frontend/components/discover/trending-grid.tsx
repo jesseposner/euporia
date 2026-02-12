@@ -13,11 +13,11 @@ export function TrendingGrid() {
     queryKey: ["trending", merchant.domain],
     queryFn: async () => {
       const res = await fetch(
-        `/api/products?q=trending&store=${encodeURIComponent(merchant.domain)}`,
+        `/api/products?store=${encodeURIComponent(merchant.domain)}&limit=18&pages=3`,
       );
       if (!res.ok) throw new Error("Failed to load trending products");
       const data = (await res.json()) as { products?: Product[] };
-      return (data.products || []).slice(0, 6);
+      return data.products || [];
     },
   });
 
@@ -62,7 +62,7 @@ export function TrendingGrid() {
 function TrendingSkeleton() {
   return (
     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 9 }).map((_, i) => (
         <div
           key={i}
           className="overflow-hidden rounded-xl border border-border bg-card"

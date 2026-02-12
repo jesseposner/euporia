@@ -16,7 +16,7 @@ export function Dashboard() {
     queryKey: ["products", merchant.domain],
     queryFn: async () => {
       const res = await fetch(
-        `/api/products?store=${encodeURIComponent(merchant.domain)}`,
+        `/api/products?store=${encodeURIComponent(merchant.domain)}&limit=24&pages=3`,
       );
       if (!res.ok) throw new Error("Failed to load products");
       const data = (await res.json()) as { products?: Product[] };
