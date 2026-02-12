@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ProductGrid } from "@/components/product-card";
 import { CartSummary } from "@/components/cart-summary";
 import { useMerchant } from "@/lib/merchant-context";
+import { MarkdownResponse } from "@/components/markdown-response";
 import { cn } from "@/lib/utils";
 
 const SUGGESTION_CHIPS = [
@@ -223,17 +224,30 @@ export function Chat({
               >
                 {message.parts?.map((part, i) => {
                   if (part.type === "text" && part.text) {
+                    if (message.role === "user") {
+                      return (
+                        <div
+                          key={i}
+                          className="text-sm leading-relaxed whitespace-pre-wrap rounded-2xl rounded-tr-sm bg-primary px-5 py-3.5 text-white shadow-lg shadow-primary/10"
+                        >
+                          {part.text}
+                        </div>
+                      );
+                    }
+
                     return (
                       <div
                         key={i}
-                        className={cn(
-                          "text-sm leading-relaxed whitespace-pre-wrap",
-                          message.role === "user"
-                            ? "rounded-2xl rounded-tr-sm bg-primary px-5 py-3.5 text-white shadow-lg shadow-primary/10"
-                            : "rounded-2xl rounded-tl-sm border border-border bg-card p-6 shadow-sm",
-                        )}
+                        className="text-sm leading-relaxed rounded-2xl rounded-tl-sm border border-border bg-card p-6 shadow-sm"
                       >
-                        {part.text}
+                        <MarkdownResponse
+                          isStreaming={
+                            status === "streaming" &&
+                            message.id === messages.filter((m) => m.role === "assistant").at(-1)?.id
+                          }
+                        >
+                          {part.text}
+                        </MarkdownResponse>
                       </div>
                     );
                   }
