@@ -4,7 +4,7 @@ USER root
 
 # System deps for sqlx (SQLite) and general build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev libsqlite3-dev build-essential && \
+    pkg-config libssl-dev libsqlite3-dev build-essential openssh-client && \
     rm -rf /var/lib/apt/lists/*
 
 # Rust toolchain (install as agent so paths land in /home/agent)

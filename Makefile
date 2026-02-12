@@ -46,6 +46,7 @@ lint-frontend: ## Run Next.js lint
 check: lint test ## Lint + test (pre-merge gate)
 
 TEMPLATE := euporia-sandbox-template:v1
+REMOTE_URL := $(shell git remote get-url origin 2>/dev/null)
 
 # ── Docker Sandbox ─────────────────────────────────────
 # Auto-build template if missing (survives Docker Desktop restarts)
@@ -77,26 +78,36 @@ sandbox-ls: ## List running sandboxes
 sandbox-fix-auth: ## Fix OAuth in a sandbox (usage: make sandbox-fix-auth NAME=euporia-sandbox)
 	docker sandbox exec -it $(NAME) bash -c 'sed -i "/"apiKeyHelper"/d" ~/.claude/settings.json && echo "Auth fixed"'
 
-# ── Worktrees ──────────────────────────────────────────
-worktree-backend: ## Create backend worktree (or reset if exists)
+# ── Sandbox Clones ────────────────────────────────────
+clone-backend: ## Create backend clone for sandbox
 	@if [ -d ../euporia-backend ]; then \
-		echo "Worktree already exists at ../euporia-backend"; \
+		echo "Clone already exists at ../euporia-backend"; \
 	else \
-		git worktree add -b feature/backend ../euporia-backend 2>/dev/null \
-		|| git worktree add ../euporia-backend feature/backend; \
+		git clone $(CURDIR) ../euporia-backend \
+		&& git -C ../euporia-backend remote set-url origin $(REMOTE_URL) \
+		&& git -C ../euporia-backend checkout -b feature/backend; \
 	fi
 
-worktree-frontend: ## Create frontend worktree (or reset if exists)
+clone-frontend: ## Create frontend clone for sandbox
 	@if [ -d ../euporia-frontend ]; then \
-		echo "Worktree already exists at ../euporia-frontend"; \
+		echo "Clone already exists at ../euporia-frontend"; \
 	else \
-		git worktree add -b feature/frontend ../euporia-frontend 2>/dev/null \
-		|| git worktree add ../euporia-frontend feature/frontend; \
+		git clone $(CURDIR) ../euporia-frontend \
+		&& git -C ../euporia-frontend remote set-url origin $(REMOTE_URL) \
+		&& git -C ../euporia-frontend checkout -b feature/frontend; \
 	fi
 
-worktree-clean: ## Remove all worktrees
-	-git worktree remove ../euporia-backend
-	-git worktree remove ../euporia-frontend
+clone-sync: ## Pull latest main into all sandbox clones
+	@for c in ../euporia-backend ../euporia-frontend; do \
+		if [ -d "$$c" ]; then \
+			echo "Syncing $$c..."; \
+			git -C "$$c" fetch origin && git -C "$$c" merge origin/main; \
+		fi; \
+	done
+
+clone-clean: ## Remove all sandbox clones
+	-rm -rf ../euporia-backend
+	-rm -rf ../euporia-frontend
 
 # ── Review ─────────────────────────────────────────────
 review: ## Review current branch diff with Codex (usage: make review BRANCH=feature/backend)
@@ -121,4 +132,4 @@ help: ## Show this help
 .PHONY: build build-backend build-frontend dev dev-backend dev-frontend \
         test test-backend test-frontend lint lint-backend lint-frontend check \
         ensure-template sandbox sandbox-backend sandbox-frontend sandbox-build sandbox-setup sandbox-ls sandbox-fix-auth \
-        worktree-backend worktree-frontend worktree-clean review setup help
+        clone-backend clone-frontend clone-sync clone-clean review setup help
