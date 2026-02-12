@@ -49,7 +49,10 @@ export function Chat({
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      // ScrollArea uses a viewport wrapper — scroll the parent viewport
+      const viewport = scrollRef.current.closest("[data-radix-scroll-area-viewport]");
+      const target = viewport || scrollRef.current;
+      target.scrollTop = target.scrollHeight;
     }
   }, [messages]);
 
