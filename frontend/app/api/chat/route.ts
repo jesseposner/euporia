@@ -7,11 +7,10 @@ import {
 } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
-import { callMCP } from "@/lib/shopify-mcp";
+import { searchProducts, addToCart, getCart } from "@/lib/shopify";
 
 export const maxDuration = 60;
 
-const STORE = process.env.SHOPIFY_STORE || "store.bitcoinmagazine.com";
 const BACKEND = process.env.BACKEND_URL || "http://localhost:3010";
 
 const SYSTEM_PROMPT = `You are ShopAI, a personal shopping concierge. You help people discover products they'll love.
@@ -69,10 +68,7 @@ export async function POST(req: Request) {
             .describe("User taste/preference context to improve results"),
         }),
         execute: async ({ query, context }) => {
-          return await callMCP(STORE, "search_shop_catalog", {
-            query,
-            context: context || "",
-          });
+          return await searchProducts(query, context);
         },
       }),
 
@@ -85,7 +81,7 @@ export async function POST(req: Request) {
             .describe("Product handle (URL slug) from search results"),
         }),
         execute: async ({ handle }) => {
-          return await callMCP(STORE, "get_product_details", { handle });
+          return await searchProducts(handle);
         },
       }),
 
@@ -109,9 +105,7 @@ export async function POST(req: Request) {
             .describe("Existing cart ID to add to. Omit to create a new cart."),
         }),
         execute: async ({ items, cartId }) => {
-          const args: Record<string, unknown> = { items };
-          if (cartId) args.cartId = cartId;
-          return await callMCP(STORE, "update_cart", args);
+          return await addToCart(items, cartId);
         },
       }),
 
@@ -120,8 +114,8 @@ export async function POST(req: Request) {
         inputSchema: z.object({
           cartId: z.string().describe("The cart ID to retrieve"),
         }),
-        execute: async ({ cartId }) => {
-          return await callMCP(STORE, "get_cart", { cartId });
+        execute: async ({ cartId: id }) => {
+          return await getCart(id);
         },
       }),
 

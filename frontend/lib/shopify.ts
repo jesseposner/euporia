@@ -54,31 +54,126 @@ export interface Cart {
   totalQuantity?: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeProduct(raw: any): Product {
+  // Extract handle from URL like "https://store.../products/the-core-issue-40"
+  const handle = raw.handle ?? raw.url?.split("/products/")[1] ?? undefined;
+
+  // Normalize images
+  const images: ProductImage[] = [];
+  if (raw.images) {
+    images.push(...raw.images);
+  } else if (raw.image_url) {
+    images.push({ url: raw.image_url, altText: raw.image_alt_text });
+  }
+
+  // Normalize price range
+  const priceRange = raw.priceRange ?? (raw.price_range
+    ? {
+        minVariantPrice: {
+          amount: raw.price_range.min,
+          currencyCode: raw.price_range.currency,
+        },
+        maxVariantPrice: {
+          amount: raw.price_range.max,
+          currencyCode: raw.price_range.currency,
+        },
+      }
+    : undefined);
+
+  // Normalize variants
+  const variants: ProductVariant[] | undefined = raw.variants?.map(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (v: any) => ({
+      id: v.id ?? v.variant_id,
+      title: v.title,
+      availableForSale: v.availableForSale ?? v.available ?? true,
+      price: v.price
+        ? typeof v.price === "object"
+          ? v.price
+          : { amount: v.price, currencyCode: v.currency ?? priceRange?.minVariantPrice?.currencyCode }
+        : undefined,
+      selectedOptions: v.selectedOptions,
+    }),
+  );
+
+  return {
+    title: raw.title,
+    handle,
+    description: raw.description,
+    descriptionHtml: raw.descriptionHtml,
+    priceRange,
+    images,
+    variants,
+    availableForSale: raw.availableForSale ?? raw.available,
+    productType: raw.productType ?? raw.product_type,
+    tags: raw.tags,
+  };
+}
+
 export async function searchProducts(
   query: string,
   context?: string,
 ): Promise<{ products: Product[] }> {
-  return await callMCP(STORE, "search_shop_catalog", {
+  const raw = await callMCP(STORE, "search_shop_catalog", {
     query,
     context: context || "",
   });
+  return {
+    products: (raw.products || []).map(normalizeProduct),
+  };
 }
 
 export async function getProductDetails(
   handle: string,
-): Promise<Product> {
-  return await callMCP(STORE, "get_product_details", { handle });
+): Promise<Product | null> {
+  // The MCP get_product_details requires product_id, not handle.
+  // Search by handle and match the result instead.
+  const result = await searchProducts(handle);
+  return result.products.find((p) => p.handle === handle) ?? null;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeCart(raw: any): Cart {
+  // MCP wraps cart data under "cart" key with snake_case
+  const c = raw.cart ?? raw;
+  return {
+    id: c.id,
+    checkoutUrl: c.checkoutUrl ?? c.checkout_url,
+    totalQuantity: c.totalQuantity ?? c.total_quantity ?? 0,
+    cost: c.cost
+      ? {
+          totalAmount: c.cost.totalAmount ?? c.cost.total_amount,
+          subtotalAmount: c.cost.subtotalAmount ?? c.cost.subtotal_amount,
+        }
+      : undefined,
+    lines: (c.lines ?? []).map(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (line: any) => ({
+        id: line.id,
+        quantity: line.quantity,
+        merchandise: line.merchandise,
+      }),
+    ),
+  };
 }
 
 export async function addToCart(
   items: { merchandiseId: string; quantity: number }[],
   cartId?: string,
 ): Promise<Cart> {
-  const args: Record<string, unknown> = { items };
-  if (cartId) args.cartId = cartId;
-  return await callMCP(STORE, "update_cart", args);
+  const args: Record<string, unknown> = {
+    add_items: items.map((i) => ({
+      product_variant_id: i.merchandiseId,
+      quantity: i.quantity,
+    })),
+  };
+  if (cartId) args.cart_id = cartId;
+  const raw = await callMCP(STORE, "update_cart", args);
+  return normalizeCart(raw);
 }
 
 export async function getCart(cartId: string): Promise<Cart> {
-  return await callMCP(STORE, "get_cart", { cartId });
+  const raw = await callMCP(STORE, "get_cart", { cart_id: cartId });
+  return normalizeCart(raw);
 }

@@ -48,10 +48,8 @@ export async function POST(
   }
 
   // Fetch product details from Shopify
-  let product;
-  try {
-    product = await getProductDetails(handle);
-  } catch {
+  const product = await getProductDetails(handle);
+  if (!product) {
     return NextResponse.json(
       { error: "Product not found" },
       { status: 404 },

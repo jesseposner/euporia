@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProductDetails } from "@/lib/shopify";
+import { searchProducts } from "@/lib/shopify";
 
 export async function GET(
   _req: NextRequest,
@@ -8,7 +8,17 @@ export async function GET(
   const { handle } = await params;
 
   try {
-    const product = await getProductDetails(handle);
+    // Search by handle and match the product whose URL contains the handle
+    const result = await searchProducts(handle);
+    const product = result.products.find((p) => p.handle === handle);
+
+    if (!product) {
+      return NextResponse.json(
+        { error: "Product not found" },
+        { status: 404 },
+      );
+    }
+
     return NextResponse.json(product);
   } catch (e) {
     return NextResponse.json(
