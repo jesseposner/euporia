@@ -9,7 +9,7 @@ export function getModel() {
       baseURL: process.env.LLM_LOCAL_URL ?? "http://localhost:8080/v1",
       apiKey: "not-needed",
     });
-    return local(process.env.LLM_LOCAL_MODEL ?? "qwen-coder-3");
+    return local.chat(process.env.LLM_LOCAL_MODEL ?? "qwen-coder-3");
   }
 
   if (provider !== "anthropic") {
