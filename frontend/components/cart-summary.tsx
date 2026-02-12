@@ -1,6 +1,5 @@
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, ExternalLink } from "lucide-react";
 
 interface CartLine {
   id?: string;
@@ -28,7 +27,7 @@ export function CartSummary({ cart }: { cart: Cart }) {
     <Card className="my-2">
       <CardContent className="p-4">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-          <ShoppingCart className="size-4" />
+          <span className="material-icons-round text-base">shopping_cart</span>
           Cart ({cart.totalQuantity || cart.lines?.length || 0} items)
         </div>
         {cart.lines?.map((line, i) => (
@@ -63,7 +62,9 @@ export function CartSummary({ cart }: { cart: Cart }) {
               rel="noopener noreferrer"
             >
               Checkout
-              <ExternalLink className="ml-1 size-3.5" />
+              <span className="material-icons-round ml-1 text-sm">
+                open_in_new
+              </span>
             </a>
           </Button>
         </CardFooter>

@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/sidebar";
+import { MobileHeader } from "@/components/mobile-header";
 import { CartProvider } from "@/lib/cart-context";
 
 export default function MainLayout({
@@ -8,11 +9,14 @@ export default function MainLayout({
 }) {
   return (
     <CartProvider>
-      <div className="flex h-dvh overflow-hidden">
+      <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
         <Sidebar />
-        <main className="relative flex flex-1 flex-col overflow-hidden">
-          {children}
-        </main>
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <MobileHeader />
+          <main className="relative flex flex-1 flex-col overflow-hidden">
+            {children}
+          </main>
+        </div>
       </div>
     </CartProvider>
   );

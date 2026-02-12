@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -9,14 +9,39 @@ import { ProductGrid } from "@/components/product-card";
 import { CartSummary } from "@/components/cart-summary";
 import { cn } from "@/lib/utils";
 
-export function Chat({ sessionId }: { sessionId: string }) {
+const SUGGESTION_CHIPS = [
+  { label: "Trending now", icon: "trending_up", query: "What's trending right now?" },
+  { label: "Gift ideas", icon: "redeem", query: "I need gift ideas for someone special" },
+  { label: "Under $50", icon: "sell", query: "Show me products under $50" },
+  { label: "Best sellers", icon: "star", query: "What are your best sellers?" },
+];
+
+interface ChatProps {
+  sessionId: string;
+  conversationId?: string | null;
+  initialMessages?: { id: string; role: "user" | "assistant"; content: string }[];
+  onConversationSaved?: (convId: string) => void;
+}
+
+export function Chat({
+  sessionId,
+  conversationId,
+  initialMessages,
+  onConversationSaved,
+}: ChatProps) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const convIdRef = useRef<string | null>(conversationId || null);
+  const savingRef = useRef(false);
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
       api: `/api/chat?sessionId=${encodeURIComponent(sessionId)}`,
     }),
+    messages: initialMessages?.map((m) => ({
+      ...m,
+      parts: [{ type: "text" as const, text: m.content }],
+    })),
   });
 
   const isLoading = status === "streaming" || status === "submitted";
@@ -28,12 +53,83 @@ export function Chat({ sessionId }: { sessionId: string }) {
     }
   }, [messages]);
 
+  // Save conversation when assistant finishes responding
+  const saveConversation = useCallback(async () => {
+    if (savingRef.current || messages.length === 0) return;
+    savingRef.current = true;
+
+    try {
+      // Extract text-only messages for storage
+      const toSave = messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content:
+          m.parts
+            ?.filter((p) => p.type === "text")
+            .map((p) => (p as { text: string }).text)
+            .join("") || "",
+      }));
+
+      // Derive title from first user message
+      const firstUserMsg = toSave.find((m) => m.role === "user");
+      const title = firstUserMsg
+        ? firstUserMsg.content.slice(0, 60) + (firstUserMsg.content.length > 60 ? "..." : "")
+        : "New Chat";
+
+      if (!convIdRef.current) {
+        // Create new conversation
+        const res = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ sessionId, title }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          convIdRef.current = data.id;
+        }
+      }
+
+      if (convIdRef.current) {
+        // Save messages
+        await fetch(
+          `/api/conversations/${encodeURIComponent(convIdRef.current)}?sessionId=${encodeURIComponent(sessionId)}`,
+          {
+            method: "PUT",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              messages: toSave,
+              title: !conversationId ? title : undefined,
+            }),
+          },
+        );
+        onConversationSaved?.(convIdRef.current);
+      }
+    } catch {
+      // Best effort save
+    } finally {
+      savingRef.current = false;
+    }
+  }, [messages, sessionId, conversationId, onConversationSaved]);
+
+  // Save when streaming finishes
+  useEffect(() => {
+    if (status === "ready" && messages.length > 0) {
+      saveConversation();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const text = input.trim();
     if (!text || isLoading) return;
     setInput("");
     sendMessage({ text });
+  }
+
+  function handleChipClick(query: string) {
+    if (isLoading) return;
+    sendMessage({ text: query });
   }
 
   return (
@@ -60,6 +156,22 @@ export function Chat({ sessionId }: { sessionId: string }) {
               <p className="mt-1 text-sm">
                 Say hello to start discovering products you&apos;ll love.
               </p>
+
+              {/* Suggestion Chips */}
+              <div className="mt-8 flex flex-wrap justify-center gap-2">
+                {SUGGESTION_CHIPS.map((chip) => (
+                  <button
+                    key={chip.label}
+                    onClick={() => handleChipClick(chip.query)}
+                    className="flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-2 text-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md hover:shadow-primary/5"
+                  >
+                    <span className="material-icons-round text-base text-primary">
+                      {chip.icon}
+                    </span>
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useCart } from "@/lib/cart-context";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -12,9 +13,11 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { cart } = useCart();
+  const cartCount = cart?.totalQuantity || 0;
 
   return (
-    <aside className="flex h-full w-64 flex-shrink-0 flex-col border-r border-border bg-card">
+    <aside className="hidden h-full w-64 flex-shrink-0 flex-col border-r border-border bg-card md:flex">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b border-border px-6">
         <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-white">
@@ -57,6 +60,21 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Cart Badge */}
+      {cartCount > 0 && (
+        <div className="border-t border-border p-3">
+          <div className="flex items-center gap-3 rounded-lg bg-primary/5 px-3 py-2.5 text-sm">
+            <span className="material-icons-round text-xl text-primary">
+              shopping_cart
+            </span>
+            <span className="font-medium">Cart</span>
+            <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+              {cartCount}
+            </span>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
