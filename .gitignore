@@ -27,8 +27,6 @@ out/
 # Worktrees
 .worktrees/
 
-# Planning docs (throwaway)
-docs/
 
 # Personal skills
 .claude/skills/deepen-plan-team/
