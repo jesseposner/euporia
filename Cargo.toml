@@ -18,6 +18,8 @@ dotenvy = "0.15"
 anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4"] }
+chrono = "0.4"
 proptest = "1"
 
 [workspace.lints.rust]

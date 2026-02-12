@@ -16,6 +16,8 @@ dotenvy.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+uuid.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
