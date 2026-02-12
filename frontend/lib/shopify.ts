@@ -195,9 +195,10 @@ export async function updateCartItems(
   updates: { lineId: string; quantity: number }[],
   store?: string,
 ): Promise<Cart> {
+  const safeUpdates = Array.isArray(updates) ? updates : [];
   const raw = await callMCP(store || DEFAULT_STORE, "update_cart", {
     cart_id: cartId,
-    update_items: updates.map((u) => ({ id: u.lineId, quantity: u.quantity })),
+    update_items: safeUpdates.map((u) => ({ id: u.lineId, quantity: u.quantity })),
   });
   return normalizeCart(raw);
 }
@@ -207,9 +208,10 @@ export async function removeFromCart(
   lineIds: string[],
   store?: string,
 ): Promise<Cart> {
+  const safeLineIds = Array.isArray(lineIds) ? lineIds : [];
   const raw = await callMCP(store || DEFAULT_STORE, "update_cart", {
     cart_id: cartId,
-    remove_line_ids: lineIds,
+    remove_line_ids: safeLineIds,
   });
   return normalizeCart(raw);
 }
@@ -219,9 +221,10 @@ export async function applyDiscountCode(
   codes: string[],
   store?: string,
 ): Promise<Cart> {
+  const safeCodes = Array.isArray(codes) ? codes : [];
   const raw = await callMCP(store || DEFAULT_STORE, "update_cart", {
     cart_id: cartId,
-    discount_codes: codes,
+    discount_codes: safeCodes,
   });
   return normalizeCart(raw);
 }
@@ -256,8 +259,9 @@ export async function addToCart(
   cartId?: string,
   store?: string,
 ): Promise<Cart> {
+  const safeItems = Array.isArray(items) ? items : [];
   const args: Record<string, unknown> = {
-    add_items: items.map((i) => ({
+    add_items: safeItems.map((i) => ({
       product_variant_id: i.merchandiseId,
       quantity: i.quantity,
     })),

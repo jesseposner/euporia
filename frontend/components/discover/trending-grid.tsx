@@ -1,13 +1,91 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { ProductCard } from "@/components/product-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMerchant } from "@/lib/merchant-context";
+import { getOrCreateSessionId } from "@/lib/session";
 import type { Product } from "@/lib/shopify";
+
+interface WishlistItem {
+  id?: string;
+  product_handle?: string;
+}
 
 export function TrendingGrid() {
   const { merchant } = useMerchant();
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [wishlistByHandle, setWishlistByHandle] = useState<Record<string, string>>({});
+  const [pendingHandle, setPendingHandle] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSessionId(getOrCreateSessionId());
+  }, []);
+
+  const fetchWishlist = useCallback(async (sid: string) => {
+    try {
+      const res = await fetch(`/api/wishlist?sessionId=${encodeURIComponent(sid)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = Array.isArray(data.items)
+        ? data.items
+        : Array.isArray(data.wishlist)
+          ? data.wishlist
+          : [];
+
+      const next: Record<string, string> = {};
+      for (const item of items as WishlistItem[]) {
+        if (item.product_handle && item.id) next[item.product_handle] = item.id;
+      }
+      setWishlistByHandle(next);
+    } catch {
+      // Best effort sync.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    void fetchWishlist(sessionId);
+  }, [sessionId, fetchWishlist]);
+
+  const toggleWishlist = useCallback(
+    async (e: MouseEvent<HTMLButtonElement>, product: Product) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const handle = product.handle;
+      if (!sessionId || !handle || pendingHandle === handle) return;
+
+      setPendingHandle(handle);
+      try {
+        const itemId = wishlistByHandle[handle];
+        if (itemId) {
+          await fetch(
+            `/api/wishlist/${encodeURIComponent(itemId)}?sessionId=${encodeURIComponent(sessionId)}`,
+            { method: "DELETE" },
+          );
+        } else {
+          await fetch("/api/wishlist", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              sessionId,
+              product_handle: handle,
+              product_title: product.title,
+              product_image: product.images?.[0]?.url,
+              product_price: product.priceRange?.minVariantPrice?.amount,
+            }),
+          });
+        }
+
+        await fetchWishlist(sessionId);
+      } finally {
+        setPendingHandle(null);
+      }
+    },
+    [fetchWishlist, pendingHandle, sessionId, wishlistByHandle],
+  );
 
   const trendingQuery = useQuery({
     queryKey: ["trending", merchant.domain],
@@ -37,9 +115,18 @@ export function TrendingGrid() {
           {products.map((product, i) => (
             <div key={product.handle || i} className="group relative">
               <ProductCard product={product} />
-              <button className="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-full bg-card/80 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:text-red-400">
+              <button
+                type="button"
+                onClick={(e) => void toggleWishlist(e, product)}
+                disabled={!product.handle || pendingHandle === product.handle}
+                className="absolute right-3 top-3 z-10 flex size-8 items-center justify-center rounded-full bg-card/80 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-60"
+              >
                 <span className="material-icons-round text-lg">
-                  favorite_border
+                  {pendingHandle === product.handle
+                    ? "progress_activity"
+                    : product.handle && wishlistByHandle[product.handle]
+                      ? "favorite"
+                      : "favorite_border"}
                 </span>
               </button>
             </div>

@@ -18,6 +18,8 @@ interface CartContextValue {
     merchandiseId: string,
     quantity: number,
   ) => Promise<void>;
+  updateItem: (lineId: string, quantity: number) => Promise<void>;
+  removeItem: (lineId: string) => Promise<void>;
   refreshCart: () => Promise<void>;
 }
 
@@ -26,6 +28,8 @@ const CartContext = createContext<CartContextValue>({
   cartId: null,
   isLoading: false,
   addItem: async () => {},
+  updateItem: async () => {},
+  removeItem: async () => {},
   refreshCart: async () => {},
 });
 
@@ -117,8 +121,70 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     [cartId, cartStorageKey, merchant.domain],
   );
 
+  const updateItem = useCallback(
+    async (lineId: string, quantity: number) => {
+      if (!cartId) return;
+
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/cart", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            cartId,
+            store: merchant.domain,
+            updates: [{ lineId, quantity }],
+          }),
+        });
+        if (res.ok) {
+          const data: Cart = await res.json();
+          setCart(data);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [cartId, merchant.domain],
+  );
+
+  const removeItem = useCallback(
+    async (lineId: string) => {
+      if (!cartId) return;
+
+      setIsLoading(true);
+      try {
+        const res = await fetch("/api/cart", {
+          method: "DELETE",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            cartId,
+            store: merchant.domain,
+            lineIds: [lineId],
+          }),
+        });
+        if (res.ok) {
+          const data: Cart = await res.json();
+          setCart(data);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [cartId, merchant.domain],
+  );
+
   return (
-    <CartContext value={{ cart, cartId, isLoading, addItem, refreshCart }}>
+    <CartContext
+      value={{
+        cart,
+        cartId,
+        isLoading,
+        addItem,
+        updateItem,
+        removeItem,
+        refreshCart,
+      }}
+    >
       {children}
     </CartContext>
   );

@@ -22,6 +22,7 @@ const categoryItems = [
 
 const yourSpaceItems = [
   { href: "/wishlist", label: "Wishlist", icon: "favorite_border" },
+  { href: "/cart", label: "Cart", icon: "shopping_cart" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];
 
@@ -31,6 +32,7 @@ export function Sidebar() {
   const { cart } = useCart();
   const { merchant, setMerchant, allMerchants } = useMerchant();
   const cartCount = cart?.totalQuantity || 0;
+  const isCartActive = pathname.startsWith("/cart");
 
   function handleStoreSwitch(nextMerchant: (typeof allMerchants)[number]) {
     setMerchant(nextMerchant);
@@ -196,19 +198,30 @@ export function Sidebar() {
       </div>
 
       {/* Cart Badge */}
-      {cartCount > 0 && (
-        <div className="border-t border-border p-3">
-          <div className="flex items-center gap-3 rounded-lg bg-primary/5 px-3 py-2.5 text-sm">
-            <span className="material-icons-round text-xl text-primary">
-              shopping_cart
-            </span>
-            <span className="font-medium">Cart</span>
-            <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
-              {cartCount}
-            </span>
-          </div>
-        </div>
-      )}
+      <div className="border-t border-border p-3">
+        <Link
+          href="/cart"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+            isCartActive
+              ? "bg-primary/10 text-primary"
+              : "bg-primary/5 hover:bg-primary/10",
+          )}
+        >
+          <span
+            className={cn(
+              "material-icons-round text-xl",
+              isCartActive ? "text-primary" : "text-primary",
+            )}
+          >
+            shopping_cart
+          </span>
+          <span className="font-medium">Cart</span>
+          <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+            {cartCount}
+          </span>
+        </Link>
+      </div>
     </aside>
   );
 }

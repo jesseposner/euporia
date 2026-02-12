@@ -4,7 +4,7 @@ import { useCart } from "@/lib/cart-context";
 import { Button } from "@/components/ui/button";
 
 export function CartPanel() {
-  const { cart, isLoading } = useCart();
+  const { cart, isLoading, updateItem, removeItem } = useCart();
 
   if (isLoading && !cart) {
     return (
@@ -71,9 +71,51 @@ export function CartPanel() {
                       </p>
                     )}
                   <div className="mt-1 flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      Qty: {line.quantity || 1}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        disabled={!line.id || isLoading}
+                        onClick={() => {
+                          const currentQty = line.quantity || 1;
+                          if (!line.id) return;
+                          if (currentQty <= 1) {
+                            void removeItem(line.id);
+                            return;
+                          }
+                          void updateItem(line.id, currentQty - 1);
+                        }}
+                        className="flex size-6 items-center justify-center rounded border border-border text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Decrease quantity"
+                      >
+                        <span className="material-icons-round text-sm">remove</span>
+                      </button>
+                      <span className="w-6 text-center text-xs text-muted-foreground">
+                        {line.quantity || 1}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={!line.id || isLoading}
+                        onClick={() => {
+                          if (!line.id) return;
+                          void updateItem(line.id, (line.quantity || 1) + 1);
+                        }}
+                        className="flex size-6 items-center justify-center rounded border border-border text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Increase quantity"
+                      >
+                        <span className="material-icons-round text-sm">add</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!line.id || isLoading}
+                        onClick={() => {
+                          if (!line.id) return;
+                          void removeItem(line.id);
+                        }}
+                        className="ml-2 text-xs text-muted-foreground transition-colors hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
                     {line.merchandise?.price?.amount && (
                       <span className="text-sm font-semibold text-primary">
                         ${line.merchandise.price.amount}

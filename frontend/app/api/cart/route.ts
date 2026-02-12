@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addToCart, getCart } from "@/lib/shopify";
+import { addToCart, getCart, removeFromCart, updateCartItems } from "@/lib/shopify";
 
 export async function GET(req: NextRequest) {
   const cartId = req.nextUrl.searchParams.get("cartId");
@@ -38,6 +38,50 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "Failed to update cart" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  const body = await req.json();
+  const { cartId, store, updates } = body;
+
+  if (!cartId) {
+    return NextResponse.json({ error: "cartId required" }, { status: 400 });
+  }
+  if (!Array.isArray(updates)) {
+    return NextResponse.json({ error: "updates required" }, { status: 400 });
+  }
+
+  try {
+    const cart = await updateCartItems(cartId, updates, store);
+    return NextResponse.json(cart);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Failed to update cart items" },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const body = await req.json();
+  const { cartId, store, lineIds } = body;
+
+  if (!cartId) {
+    return NextResponse.json({ error: "cartId required" }, { status: 400 });
+  }
+  if (!Array.isArray(lineIds)) {
+    return NextResponse.json({ error: "lineIds required" }, { status: 400 });
+  }
+
+  try {
+    const cart = await removeFromCart(cartId, lineIds, store);
+    return NextResponse.json(cart);
+  } catch (e) {
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "Failed to remove cart items" },
       { status: 500 },
     );
   }
