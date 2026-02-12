@@ -5,9 +5,13 @@ import { usePathname } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+const discoverItems = [
   { href: "/", label: "Dashboard", icon: "dashboard" },
-  { href: "/chat", label: "Chat", icon: "smart_toy" },
+  { href: "/chat", label: "AI Concierge", icon: "smart_toy" },
+];
+
+const yourSpaceItems = [
+  { href: "#", label: "Wishlist", icon: "favorite_border" },
   { href: "#", label: "Settings", icon: "settings" },
 ];
 
@@ -15,6 +19,36 @@ export function Sidebar() {
   const pathname = usePathname();
   const { cart } = useCart();
   const cartCount = cart?.totalQuantity || 0;
+
+  function renderNavItem(item: { href: string; label: string; icon: string }) {
+    const isActive =
+      item.href === "/"
+        ? pathname === "/"
+        : item.href !== "#" && pathname.startsWith(item.href);
+
+    return (
+      <Link
+        key={item.href + item.label}
+        href={item.href}
+        className={cn(
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+          isActive
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        )}
+      >
+        <span
+          className={cn(
+            "material-icons-round text-xl",
+            isActive ? "text-primary" : "",
+          )}
+        >
+          {item.icon}
+        </span>
+        {item.label}
+      </Link>
+    );
+  }
 
   return (
     <aside className="hidden h-full w-64 flex-shrink-0 flex-col border-r border-border bg-card md:flex">
@@ -28,37 +62,23 @@ export function Sidebar() {
         </span>
       </div>
 
-      {/* Nav Links */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {navItems.map((item) => {
-          const isActive =
-            item.href === "/"
-              ? pathname === "/"
-              : pathname.startsWith(item.href);
+      {/* Sections */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {/* Discover */}
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+          Discover
+        </p>
+        <div className="space-y-0.5">
+          {discoverItems.map(renderNavItem)}
+        </div>
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-              )}
-            >
-              <span
-                className={cn(
-                  "material-icons-round text-xl",
-                  isActive ? "text-primary" : "",
-                )}
-              >
-                {item.icon}
-              </span>
-              {item.label}
-            </Link>
-          );
-        })}
+        {/* Your Space */}
+        <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+          Your Space
+        </p>
+        <div className="space-y-0.5">
+          {yourSpaceItems.map(renderNavItem)}
+        </div>
       </nav>
 
       {/* Cart Badge */}

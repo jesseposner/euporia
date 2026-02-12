@@ -9,9 +9,11 @@ export function CartPanel() {
   if (isLoading && !cart) {
     return (
       <div className="flex h-full flex-col border-l border-border bg-card">
-        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <span className="material-icons-round text-lg">shopping_cart</span>
-          <span className="text-sm font-semibold">Cart</span>
+        <div className="flex items-center gap-2 border-b border-border px-4 py-4">
+          <span className="material-icons-round text-lg text-primary">
+            shopping_cart
+          </span>
+          <span className="text-sm font-bold">Your Cart</span>
         </div>
         <div className="flex flex-1 items-center justify-center">
           <div className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -27,11 +29,13 @@ export function CartPanel() {
   return (
     <div className="flex h-full flex-col border-l border-border bg-card">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <span className="material-icons-round text-lg">shopping_cart</span>
-        <span className="text-sm font-semibold">Cart</span>
+      <div className="flex items-center gap-2 border-b border-border px-4 py-4">
+        <span className="material-icons-round text-lg text-primary">
+          shopping_cart
+        </span>
+        <span className="text-sm font-bold">Your Cart</span>
         {itemCount > 0 && (
-          <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+          <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
             {itemCount}
           </span>
         )}
