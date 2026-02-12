@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
+import { useMerchant } from "@/lib/merchant-context";
 import { cn } from "@/lib/utils";
 
 const discoverItems = [
@@ -18,6 +19,7 @@ const yourSpaceItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { cart } = useCart();
+  const { merchant, setMerchant, allMerchants } = useMerchant();
   const cartCount = cart?.totalQuantity || 0;
 
   function renderNavItem(item: { href: string; label: string; icon: string }) {
@@ -70,6 +72,48 @@ export function Sidebar() {
         </p>
         <div className="space-y-0.5">
           {discoverItems.map(renderNavItem)}
+        </div>
+
+        {/* Stores */}
+        <p className="mb-2 mt-6 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/50">
+          Stores
+        </p>
+        <div className="space-y-0.5">
+          {allMerchants.map((m) => {
+            const isActive = merchant.id === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setMerchant(m)}
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                )}
+              >
+                <span
+                  className={cn(
+                    "material-icons-round text-xl",
+                    isActive ? "text-primary" : "",
+                  )}
+                >
+                  {m.icon}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate">{m.name}</div>
+                  <div className="truncate text-[10px] font-normal text-muted-foreground/60">
+                    {m.category}
+                  </div>
+                </div>
+                {isActive && (
+                  <span className="material-icons-round text-sm text-primary">
+                    check_circle
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Your Space */}

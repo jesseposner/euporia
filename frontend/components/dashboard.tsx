@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ProductGrid } from "@/components/product-card";
 import { CartPanel } from "@/components/cart-panel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMerchant } from "@/lib/merchant-context";
 import type { Product } from "@/lib/shopify";
 
 interface RecentConversation {
@@ -19,12 +20,13 @@ export function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [recentChats, setRecentChats] = useState<RecentConversation[]>([]);
+  const { merchant } = useMerchant();
 
   const fetchProducts = useCallback(async (query: string) => {
     setIsLoading(true);
     try {
       const res = await fetch(
-        `/api/products?q=${encodeURIComponent(query)}`,
+        `/api/products?q=${encodeURIComponent(query)}&store=${encodeURIComponent(merchant.domain)}`,
       );
       if (res.ok) {
         const data = await res.json();
@@ -35,9 +37,11 @@ export function Dashboard() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [merchant.domain]);
 
   useEffect(() => {
+    setSearchInput("");
+    setSearchQuery("");
     fetchProducts("");
   }, [fetchProducts]);
 
@@ -73,8 +77,9 @@ export function Dashboard() {
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Header */}
         <header className="flex h-16 items-center justify-between border-b border-border bg-card/90 px-6 backdrop-blur-sm md:px-8">
-          <div className="hidden text-sm font-medium text-muted-foreground md:flex">
-            Welcome back
+          <div className="hidden items-center gap-2 text-sm font-medium text-muted-foreground md:flex">
+            <span className="material-icons-round text-base text-primary">{merchant.icon}</span>
+            {merchant.name}
           </div>
           <div className="flex items-center gap-4">
             <button className="relative rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent">

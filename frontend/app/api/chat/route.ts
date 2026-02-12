@@ -73,6 +73,7 @@ RULES:
 export async function POST(req: Request) {
   const url = new URL(req.url);
   const sessionId = url.searchParams.get("sessionId") || "demo";
+  const storeDomain = url.searchParams.get("store") || undefined;
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   const result = streamText({
@@ -118,6 +119,7 @@ export async function POST(req: Request) {
             context,
             filters as SearchFilter[] | undefined,
             after,
+            storeDomain,
           );
         },
       }),
@@ -135,7 +137,7 @@ export async function POST(req: Request) {
             .describe('Variant options to select, e.g. {"Size": "Large", "Color": "Black"}'),
         }),
         execute: async ({ productId, options }) => {
-          return await getProductDetails(productId, options);
+          return await getProductDetails(productId, options, storeDomain);
         },
       }),
 
@@ -159,7 +161,7 @@ export async function POST(req: Request) {
             .describe("Existing cart ID to add to. Omit to create a new cart."),
         }),
         execute: async ({ items, cartId }) => {
-          return await addToCart(items, cartId);
+          return await addToCart(items, cartId, storeDomain);
         },
       }),
 
@@ -178,7 +180,7 @@ export async function POST(req: Request) {
             .describe("Items to update"),
         }),
         execute: async ({ cartId, updates }) => {
-          return await updateCartItems(cartId, updates);
+          return await updateCartItems(cartId, updates, storeDomain);
         },
       }),
 
@@ -189,7 +191,7 @@ export async function POST(req: Request) {
           lineIds: z.array(z.string()).describe("Line item IDs to remove"),
         }),
         execute: async ({ cartId, lineIds }) => {
-          return await removeFromCart(cartId, lineIds);
+          return await removeFromCart(cartId, lineIds, storeDomain);
         },
       }),
 
@@ -200,7 +202,7 @@ export async function POST(req: Request) {
           codes: z.array(z.string()).describe("Discount/promo codes to apply"),
         }),
         execute: async ({ cartId, codes }) => {
-          return await applyDiscountCode(cartId, codes);
+          return await applyDiscountCode(cartId, codes, storeDomain);
         },
       }),
 
@@ -210,7 +212,7 @@ export async function POST(req: Request) {
           cartId: z.string().describe("The cart ID to retrieve"),
         }),
         execute: async ({ cartId: id }) => {
-          return await getCart(id);
+          return await getCart(id, storeDomain);
         },
       }),
 
@@ -221,7 +223,7 @@ export async function POST(req: Request) {
           query: z.string().describe("The policy/FAQ question"),
         }),
         execute: async ({ query }) => {
-          return await searchPolicies(query);
+          return await searchPolicies(query, undefined, storeDomain);
         },
       }),
 

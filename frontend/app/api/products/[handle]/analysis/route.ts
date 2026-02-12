@@ -30,10 +30,11 @@ export async function GET(
 }
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ handle: string }> },
 ) {
   const { handle } = await params;
+  const store = req.nextUrl.searchParams.get("store") || undefined;
 
   // Check cache first
   try {
@@ -48,7 +49,7 @@ export async function POST(
   }
 
   // Fetch product details from Shopify
-  const product = await getProductByHandle(handle);
+  const product = await getProductByHandle(handle, store);
   if (!product) {
     return NextResponse.json(
       { error: "Product not found" },

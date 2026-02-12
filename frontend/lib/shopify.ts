@@ -1,6 +1,7 @@
 import { callMCP } from "@/lib/shopify-mcp";
+import { defaultMerchant } from "@/lib/merchants";
 
-const STORE = process.env.SHOPIFY_STORE || "store.bitcoinmagazine.com";
+const DEFAULT_STORE = process.env.SHOPIFY_STORE || defaultMerchant.domain;
 
 export interface ProductImage {
   url?: string;
@@ -135,6 +136,7 @@ export async function searchProducts(
   context?: string,
   filters?: SearchFilter[],
   after?: string,
+  store?: string,
 ): Promise<SearchResult> {
   const args: Record<string, unknown> = {
     query,
@@ -142,7 +144,7 @@ export async function searchProducts(
   };
   if (filters?.length) args.filters = filters;
   if (after) args.after = after;
-  const raw = await callMCP(STORE, "search_shop_catalog", args);
+  const raw = await callMCP(store || DEFAULT_STORE, "search_shop_catalog", args);
   return {
     products: (raw.products || []).map(normalizeProduct),
     pagination: raw.pagination
@@ -155,9 +157,10 @@ export async function searchProducts(
 export async function getProductDetails(
   productId: string,
   options?: Record<string, string>,
+  store?: string,
 ): Promise<Product | null> {
   try {
-    const raw = await callMCP(STORE, "get_product_details", {
+    const raw = await callMCP(store || DEFAULT_STORE, "get_product_details", {
       product_id: productId,
       ...(options ? { options } : {}),
     });
@@ -169,16 +172,18 @@ export async function getProductDetails(
 
 export async function getProductByHandle(
   handle: string,
+  store?: string,
 ): Promise<Product | null> {
-  const result = await searchProducts(handle);
+  const result = await searchProducts(handle, undefined, undefined, undefined, store);
   return result.products.find((p) => p.handle === handle) ?? null;
 }
 
 export async function searchPolicies(
   query: string,
   context?: string,
+  store?: string,
 ): Promise<string> {
-  const raw = await callMCP(STORE, "search_shop_policies_and_faqs", {
+  const raw = await callMCP(store || DEFAULT_STORE, "search_shop_policies_and_faqs", {
     query,
     ...(context ? { context } : {}),
   });
@@ -188,8 +193,9 @@ export async function searchPolicies(
 export async function updateCartItems(
   cartId: string,
   updates: { lineId: string; quantity: number }[],
+  store?: string,
 ): Promise<Cart> {
-  const raw = await callMCP(STORE, "update_cart", {
+  const raw = await callMCP(store || DEFAULT_STORE, "update_cart", {
     cart_id: cartId,
     update_items: updates.map((u) => ({ id: u.lineId, quantity: u.quantity })),
   });
@@ -199,8 +205,9 @@ export async function updateCartItems(
 export async function removeFromCart(
   cartId: string,
   lineIds: string[],
+  store?: string,
 ): Promise<Cart> {
-  const raw = await callMCP(STORE, "update_cart", {
+  const raw = await callMCP(store || DEFAULT_STORE, "update_cart", {
     cart_id: cartId,
     remove_line_ids: lineIds,
   });
@@ -210,8 +217,9 @@ export async function removeFromCart(
 export async function applyDiscountCode(
   cartId: string,
   codes: string[],
+  store?: string,
 ): Promise<Cart> {
-  const raw = await callMCP(STORE, "update_cart", {
+  const raw = await callMCP(store || DEFAULT_STORE, "update_cart", {
     cart_id: cartId,
     discount_codes: codes,
   });
@@ -246,6 +254,7 @@ function normalizeCart(raw: any): Cart {
 export async function addToCart(
   items: { merchandiseId: string; quantity: number }[],
   cartId?: string,
+  store?: string,
 ): Promise<Cart> {
   const args: Record<string, unknown> = {
     add_items: items.map((i) => ({
@@ -254,11 +263,11 @@ export async function addToCart(
     })),
   };
   if (cartId) args.cart_id = cartId;
-  const raw = await callMCP(STORE, "update_cart", args);
+  const raw = await callMCP(store || DEFAULT_STORE, "update_cart", args);
   return normalizeCart(raw);
 }
 
-export async function getCart(cartId: string): Promise<Cart> {
-  const raw = await callMCP(STORE, "get_cart", { cart_id: cartId });
+export async function getCart(cartId: string, store?: string): Promise<Cart> {
+  const raw = await callMCP(store || DEFAULT_STORE, "get_cart", { cart_id: cartId });
   return normalizeCart(raw);
 }

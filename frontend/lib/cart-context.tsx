@@ -7,6 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useMerchant } from "@/lib/merchant-context";
 import type { Cart } from "@/lib/shopify";
 
 interface CartContextValue {
@@ -38,14 +39,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<Cart | null>(null);
   const [cartId, setCartId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const { merchant } = useMerchant();
 
-  // Load cart ID from localStorage on mount
+  // Load cart ID from localStorage on mount (scoped per merchant)
   useEffect(() => {
-    const stored = localStorage.getItem(CART_KEY);
-    if (stored) {
-      setCartId(stored);
-    }
-  }, []);
+    const stored = localStorage.getItem(`${CART_KEY}-${merchant.id}`);
+    setCartId(stored);
+    if (!stored) setCart(null);
+  }, [merchant.id]);
 
   // Fetch cart when cartId is available
   useEffect(() => {
@@ -56,7 +57,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   async function refreshCartInternal(id: string) {
     try {
       setIsLoading(true);
-      const res = await fetch(`/api/cart?cartId=${encodeURIComponent(id)}`);
+      const res = await fetch(
+        `/api/cart?cartId=${encodeURIComponent(id)}&store=${encodeURIComponent(merchant.domain)}`,
+      );
       if (res.ok) {
         const data = await res.json();
         setCart(data);
@@ -84,6 +87,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({
             items: [{ merchandiseId, quantity }],
             cartId: cartId || undefined,
+            store: merchant.domain,
           }),
         });
         if (res.ok) {
@@ -91,14 +95,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           setCart(data);
           if (data.id) {
             setCartId(data.id);
-            localStorage.setItem(CART_KEY, data.id);
+            localStorage.setItem(`${CART_KEY}-${merchant.id}`, data.id);
           }
         }
       } finally {
         setIsLoading(false);
       }
     },
-    [cartId],
+    [cartId, merchant],
   );
 
   return (

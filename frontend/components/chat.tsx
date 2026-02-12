@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { ProductGrid } from "@/components/product-card";
 import { CartSummary } from "@/components/cart-summary";
+import { useMerchant } from "@/lib/merchant-context";
 import { cn } from "@/lib/utils";
 
 const SUGGESTION_CHIPS = [
@@ -33,10 +34,11 @@ export function Chat({
   const scrollRef = useRef<HTMLDivElement>(null);
   const convIdRef = useRef<string | null>(conversationId || null);
   const savingRef = useRef(false);
+  const { merchant } = useMerchant();
 
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
-      api: `/api/chat?sessionId=${encodeURIComponent(sessionId)}`,
+      api: `/api/chat?sessionId=${encodeURIComponent(sessionId)}&store=${encodeURIComponent(merchant.domain)}`,
     }),
     messages: initialMessages?.map((m) => ({
       ...m,

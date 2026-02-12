@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/sidebar";
 import { MobileHeader } from "@/components/mobile-header";
 import { CartProvider } from "@/lib/cart-context";
+import { MerchantProvider } from "@/lib/merchant-context";
 
 export default function MainLayout({
   children,
@@ -8,16 +9,18 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   return (
-    <CartProvider>
-      <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
-        <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <MobileHeader />
-          <main className="relative flex flex-1 flex-col overflow-hidden">
-            {children}
-          </main>
+    <MerchantProvider>
+      <CartProvider>
+        <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
+          <Sidebar />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <MobileHeader />
+            <main className="relative flex flex-1 flex-col overflow-hidden">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
-    </CartProvider>
+      </CartProvider>
+    </MerchantProvider>
   );
 }

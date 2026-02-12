@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCart } from "@/lib/cart-context";
+import { useMerchant } from "@/lib/merchant-context";
 import type { Product, ProductVariant } from "@/lib/shopify";
 
 interface AIAnalysis {
@@ -27,13 +28,14 @@ export function ProductDetail({ handle }: { handle: string }) {
   const [isAdding, setIsAdding] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
   const { addItem } = useCart();
+  const { merchant } = useMerchant();
 
   // Fetch product
   useEffect(() => {
     async function load() {
       try {
         const res = await fetch(
-          `/api/products/${encodeURIComponent(handle)}/details`,
+          `/api/products/${encodeURIComponent(handle)}/details?store=${encodeURIComponent(merchant.domain)}`,
         );
         if (res.ok) {
           const data = await res.json();
@@ -49,7 +51,7 @@ export function ProductDetail({ handle }: { handle: string }) {
       }
     }
     load();
-  }, [handle]);
+  }, [handle, merchant.domain]);
 
   // Fetch AI analysis
   const fetchAnalysis = useCallback(async () => {
