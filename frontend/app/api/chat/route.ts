@@ -5,9 +5,9 @@ import {
   tool,
   type UIMessage,
 } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import { callMCP } from "@/lib/shopify-mcp";
+import { getModel } from "@/lib/llm";
 
 export const maxDuration = 60;
 
@@ -54,7 +54,7 @@ export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   const result = streamText({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: getModel(),
     system: SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
     tools: {

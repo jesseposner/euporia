@@ -11,11 +11,11 @@ No UI changes. Both providers support tool calling.
 
 ## Acceptance Criteria
 
-- [ ] `LLM_PROVIDER=local` routes to local llama-server via OpenAI-compatible API
-- [ ] `LLM_PROVIDER=anthropic` (or unset) routes to Anthropic Claude Sonnet
-- [ ] All six tools (searchProducts, getProductDetails, addToCart, getCart, loadTasteProfile, saveTasteProfile) work with both providers
-- [ ] Streaming responses work with both providers
-- [ ] No client-side changes required
+- [x] `LLM_PROVIDER=local` routes to local llama-server via OpenAI-compatible API
+- [x] `LLM_PROVIDER=anthropic` (or unset) routes to Anthropic Claude Sonnet
+- [x] All six tools (searchProducts, getProductDetails, addToCart, getCart, loadTasteProfile, saveTasteProfile) work with both providers
+- [x] Streaming responses work with both providers
+- [x] No client-side changes required
 
 ## Implementation
 
